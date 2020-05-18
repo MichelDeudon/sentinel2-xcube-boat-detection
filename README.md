@@ -2,12 +2,12 @@
 
 Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Sentinel-2 imagery](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) using temporal, spectral and spatial features.
 
-![S2-Artwork](pics/EU-Ports/Venezia/Artwork_by_Elena_Aversa.jpg)
-
 ## ⛵ Setup
 - Clone this repository with ```git clone ...``` in a Jupyter Lab environment on Euro Data Cube Dashboard (requires a valid account)
 - Edit Sentinel Hub credentials and [Mapbox](https://studio.mapbox.com/) token in a .env file (requires a valid account).
 - TODO: Edit requirements.txt and Docker image.
+
+![S2-Artwork](pics/EU-Ports/Venezia/Artwork_by_Elena_Aversa.jpg)
 
 ## 🛰️ Pipeline
 
@@ -19,7 +19,7 @@ Download [Sentinel 2](https://sentinel.esa.int/web/sentinel/missions/sentinel-2)
 
 ### 2. 🔭 Learn to detect and count boat traffic
 
-- Input (2 channels): Img NIR Band (foreground+background) and Background NDWI (background)
+- Input (2 channels): NIR Band (foreground+background) and Background NDWI (background)
 - Archi: Residual Network (pixel embedding) + MaxPool2D (patch encoding) + 2-layer 1x1 conv2D (patch latent code Z) + Clf/Reg prediction.
 
 ![Model](pics/S2-Boat-Density/Classifier.png)
@@ -33,14 +33,9 @@ Deploy model on large AOI (Ports, Straits, MPA). Example below for the Dardanell
 ![Dardanelles activity](pics/EU-Straits/Dardanelles/Dardanelles_traffic_2019.png)
 
 
-## Extensions:
+## TODO List:
 
-#### See Annexe TO DO List.
-
-###### 🌊 False Positives: Waves, Tides, etc.
-
-###### 🛰️ Extend to [Sentinel-1](https://sentinelhub-py.readthedocs.io/en/latest/examples/ogc_request.html?highlight=sentinel-1)
-
+###### See Annexe.
 
 ## Press
 
