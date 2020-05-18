@@ -30,7 +30,6 @@ Deploy model on large AOI (Ports, Straits, MPA). Example below for the Dardanell
 
 ![Dardanelles heatmaps](pics/EU-Straits/Dardanelles/Dardanelles_heatmaps_2020.png)
 ![Dardanelles activity](pics/EU-Straits/Dardanelles/Dardanelles_traffic_2020.png)
-![Dardanelles activity](pics/EU-Straits/Dardanelles/Dardanelles_traffic_2019.png)
 
 
 ## TODO List:
