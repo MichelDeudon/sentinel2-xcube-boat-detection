@@ -1,4 +1,4 @@
-# 🛰️☄️ sentinel2-xcube-boat-detection
+# ☄️ sentinel2-xcube-boat-detection
 
 Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Sentinel-2 imagery](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) using temporal, spectral and spatial features.
 
@@ -9,7 +9,7 @@ Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Senti
 - Edit Sentinel Hub credentials and [Mapbox](https://studio.mapbox.com/) token in a .env file (requires a valid account).
 - TODO: Edit requirements.txt and Docker image.
 
-## 🌍 Pipeline
+## 🛰️ Pipeline
 
 ### 1. 📷 Annotate 1 squared km chips with boat counts.
 
@@ -44,9 +44,9 @@ Deploy model on large AOI (Ports, Straits, MPA). Example below for the Dardanell
 
 ## Press
 
-- 📡 2020/05/06 CNES SpaceGate [Article](https://spacegate.cnes.fr/fr/covid-19-venise-sans-les-bateaux)
-- 🛰️ 2020/04/15 ESA [Tweet](https://mobile.twitter.com/EO_OPEN_SCIENCE/status/1250367319936765953)
-- 🛰️ 2020/04/06 ESA [Covid-19 Custom Script Contest](https://www.sentinel-hub.com/contest)
+###### 📡 2020/05/06 CNES SpaceGate [Article](https://spacegate.cnes.fr/fr/covid-19-venise-sans-les-bateaux)
+###### 🛰️ 2020/04/15 ESA [Tweet](https://mobile.twitter.com/EO_OPEN_SCIENCE/status/1250367319936765953)
+###### 🛰️ 2020/04/06 ESA [Covid-19 Custom Script Contest](https://www.sentinel-hub.com/contest)
 
 ## Credits
 
