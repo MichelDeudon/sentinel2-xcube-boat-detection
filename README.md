@@ -1,53 +1,46 @@
-# 🛰️🌍 sentinel2-xcube-boat-detection
+# 🛰️☄️ sentinel2-xcube-boat-detection
 
-## 🚢🛳️⛵🛥️ Counting Boat Traffic // Counting Comets ☄️ (temporal, spectral, spatial dimensions) 
+Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Sentinel-2 imagery](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) using temporal, spectral and spatial features.
 
-Github repository to detect and counts boat counts in [Sentinel-2 imagery](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) using temporal, spectral and spatial features.
+![S2-Artwork](pics/EU-Ports/Venezia/Artwork_by_Elena_Aversa.jpg)
 
-![S2-Artwork](pics/Eu-Ports/Venezia/Artwork_by_Elena_Aversa.png)
-
-## Setup
+## ⛵ Setup
 - Clone this repository with ```git clone ...``` in a Jupyter Lab environment on Euro Data Cube Dashboard (requires a valid account)
 - Edit Sentinel Hub credentials and [Mapbox](https://studio.mapbox.com/) token in a .env file (requires a valid account).
 - TODO: Edit requirements.txt and Docker image.
 
-## Pipeline
+## 🌍 Pipeline
 
 ### 1. 📷 Annotate 1 squared km chips with boat counts.
 
 Download [Sentinel 2](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) L1C products (bands B03, B08, [CLP](https://github.com/sentinel-hub/sentinel2-cloud-detector)) from [Sentinel Hub](https://www.sentinel-hub.com/) via [xcube-sh](https://github.com/dcs4cop/xcube-sh). Remove nans and cloudy images with CLP. Compute NDWI. Background NDWI estimation by multi frame fusion (max over time). BG NDWI can be used to obtain a water/land mask M after thresholding.
 
-![Preprocess](pics/S2-Boat-Density/preprocess.png)
-
 ![Inputs](pics/S2-Boat-Density/inputs.png)
-
-![Venezia_segmentation](pics/EU-Ports/Venezia_segmentation.png)
-
 
 ### 2. 🔭 Learn to detect and count boat traffic
 
 - Input (2 channels): Img NIR Band (foreground+background) and Background NDWI (background)
-- Architecture: Residual Network (pixel embedding) + MaxPool2D (patch encoding) + 2-layer 1x1 conv2D (patch latent code Z) + Clf/Reg prediction.
+- Archi: Residual Network (pixel embedding) + MaxPool2D (patch encoding) + 2-layer 1x1 conv2D (patch latent code Z) + Clf/Reg prediction.
 
 ![Model](pics/S2-Boat-Density/Classifier.png)
 
 ### 3. 🗺️ Deploy
 
-Deploy model on large AOI (Ports, Straits, MPA).
-
-![AOI](pics/S2-Boat-Density/aoi.png)
+Deploy model on large AOI (Ports, Straits, MPA). Example below for the Dardanelles Strait (25 squared km).
 
 ![Dardanelles heatmaps](pics/EU-Straits/Dardanelles/Dardanelles_heatmaps_2020.png)
-
 ![Dardanelles activity](pics/EU-Straits/Dardanelles/Dardanelles_traffic_2020.png)
+![Dardanelles activity](pics/EU-Straits/Dardanelles/Dardanelles_traffic_2019.png)
 
 
 ## Extensions:
 
-### 🌊 False Positives: Waves, Tides, etc.
+#### See Annexe TO DO List.
 
-### 🛰️ Extend to Sentinel-1
-https://sentinelhub-py.readthedocs.io/en/latest/examples/ogc_request.html?highlight=sentinel-1
+###### 🌊 False Positives: Waves, Tides, etc.
+
+###### 🛰️ Extend to [Sentinel-1](https://sentinelhub-py.readthedocs.io/en/latest/examples/ogc_request.html?highlight=sentinel-1)
+
 
 ## Press
 
