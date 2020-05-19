@@ -87,10 +87,9 @@ class Model(nn.Module):
             ld: float in [0,1], coef for count loss (SmoothL1) vs. presence loss (BCE)
             water_ndwi: float in [-1,1] for water detection.
         Returns:
-            error, loss: tensor (1,)
+            metrics: dict
         '''
         
-        ##### Add / report metrics (accuracy, precision, recall, f1) !!!
         ##### Optional: Regularize entropy (z) or density_map on land, or ...
         
         x = x.to(self.device)
@@ -114,7 +113,7 @@ class Model(nn.Module):
         reg_error = criterion(y_hat, y)
         
         loss = (1-ld)*clf_error + ld*reg_error
-        metrics = {'clf_error':clf_error, 'reg_error':reg_error, 'loss':loss, 'accuracy':accuracy, 'precision':precision, 'recall':recall, 'f1':f1}
+        metrics = {'loss':loss, 'clf_error':clf_error, 'reg_error':reg_error, 'accuracy':accuracy, 'precision':precision, 'recall':recall, 'f1':f1}
         return metrics
     
     def load_checkpoint(self, checkpoint_file):
@@ -138,6 +137,7 @@ class Model(nn.Module):
             heatmaps: list of np.array of size (H/chunk_size, W/chunk_size)
             counts: list of int
         """
+        
         _, density_map, p_hat, y_hat = self.forward(x.float(), water_ndwi=water_ndwi)
         density_map = density_map.detach().cpu().numpy() # (B, 1, H, W)
         y_hat = y_hat.detach().cpu().numpy() # (B, 1)

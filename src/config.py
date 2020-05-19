@@ -22,7 +22,6 @@
 import math
 import warnings
 from typing import Tuple, Union, Optional, Sequence, Dict, Any
-
 import pandas as pd
 
 DEFAULT_CRS = 'http://www.opengis.net/def/crs/EPSG/0/4326'
@@ -152,11 +151,11 @@ class CubeConfig:
         for keyword in cube_config_dict.keys():
             if keyword in valid_keywords:
                 given_keywords.remove(keyword)
-        if len(given_keywords) == 1:
-            raise exception_type(f'Found invalid parameter {given_keywords.pop()!r} in cube configuration')
-        elif len(given_keywords) > 1:
-            given_keywords_text = ', '.join(map(lambda s: f'{s!r}', sorted(given_keywords)))
-            raise exception_type(f'Found invalid parameters in cube configuration: {given_keywords_text}')
+        #if len(given_keywords) == 1:
+        #    raise exception_type(f'Found invalid parameter {given_keywords.pop()!r} in cube configuration')
+        #elif len(given_keywords) > 1:
+        #    given_keywords_text = ', '.join(map(lambda s: f'{s!r}', sorted(given_keywords)))
+        #    raise exception_type(f'Found invalid parameters in cube configuration: {given_keywords_text}')
         return CubeConfig(exception_type=exception_type, **cube_config_dict)
 
     def as_dict(self) -> Dict[str, Any]:
