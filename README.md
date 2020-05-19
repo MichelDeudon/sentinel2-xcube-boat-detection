@@ -4,11 +4,13 @@ Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Senti
 
 ## ⛵ Setup
 
-##### With Conda
-- Clone this repository with ```git clone ...``` in a Jupyter Lab environment on Euro Data Cube Dashboard (requires a valid account)
-- Run ```conda create -n sentinel2-xcube-boat-detection python=3.6``` and ```activate sentinel2-xcube-boat-detection```
-- Run ```pip install requirements.txt```
+##### With EDC
+- Clone this repository in a Jupyter Lab environment on Euro Data Cube Dashboard (requires a valid account)
 - Edit Sentinel Hub credentials and [Mapbox](https://studio.mapbox.com/) token in a .env file (requires a valid account).
+
+##### With Conda
+- Run ```conda create -n sentinel2-xcube-boat-detection python=3.6``` and ```activate sentinel2-xcube-boat-detection```
+- Clone this repository and run ```pip install requirements.txt```
 
 ##### With Docker
 - TODO: Edit requirements.txt and Docker image.
