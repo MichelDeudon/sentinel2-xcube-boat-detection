@@ -1,0 +1,8 @@
+.idea/
+checkpoints/
+data/.ipynb_checkpoints/
+data/_chips/
+data/chips/
+data/output.json
+src/.ipynb_checkpoints/
+src/__pycache__/
