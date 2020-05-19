@@ -100,3 +100,42 @@ def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', la
         json.dump(label_file, f)
         print('Saved {} labels for {}'.format(len(label), subdir))
     return 1
+
+
+def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips'):
+    """ Save preprocessed imagery to disk.
+    Args:
+        cube: xCube object with time dimension and (B02,B03,B04,B08,NDWI) bands.
+        background: xCube object with (B02,B03,B04,B08,NDWI) bands.
+        lat_lon: tuple of floats, latitude and longitude in degrees.
+        data_dir: str, path to chips folder.
+    """
+    import os
+    import sys
+    import warnings
+    from skimage.io import imsave
+    from skimage import img_as_ubyte
+
+    if not sys.warnoptions:
+        warnings.simplefilter("ignore")
+
+    os.makedirs(data_dir, exist_ok=True)
+    subdir = 'lat_{}_lon_{}'.format(str(lat_lon[0]).replace('.', '_'), str(lat_lon[1]).replace('.', '_'))
+    os.makedirs(os.path.join(data_dir, subdir), exist_ok=True)
+    # save background + imagery and labels
+    imsave(os.path.join(data_dir, subdir, 'bg_ndwi.png'), img_as_ubyte(background_ndwi.values))
+    for t in cube.time: # y is the account of ships in the image
+        snap_date = str(t.values)[:10]
+
+        imsave(os.path.join(data_dir, subdir, 'img_02_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).B02.values))
+        imsave(os.path.join(data_dir, subdir, 'img_03_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).B03.values))
+        imsave(os.path.join(data_dir, subdir, 'img_04_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).B04.values))
+
+        imsave(os.path.join(data_dir, subdir, 'img_08_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).B08.values))
+        imsave(os.path.join(data_dir, subdir, 'img_clp_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).CLP.values))
+        print('Saved cubes with timestamp {} under {}'.format(snap_date, subdir))

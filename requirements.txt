@@ -6,3 +6,5 @@ torchvision
 tqdm
 plotly
 superintendent
+pandas
+sklearn
