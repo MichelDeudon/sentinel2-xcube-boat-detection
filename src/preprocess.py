@@ -127,13 +127,8 @@ def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips'):
     for t in cube.time: # y is the account of ships in the image
         snap_date = str(t.values)[:10]
 
-        imsave(os.path.join(data_dir, subdir, 'img_02_t_{}.png'.format(snap_date)),
-               img_as_ubyte(cube.sel(time=t).B02.values))
         imsave(os.path.join(data_dir, subdir, 'img_03_t_{}.png'.format(snap_date)),
                img_as_ubyte(cube.sel(time=t).B03.values))
-        imsave(os.path.join(data_dir, subdir, 'img_04_t_{}.png'.format(snap_date)),
-               img_as_ubyte(cube.sel(time=t).B04.values))
-
         imsave(os.path.join(data_dir, subdir, 'img_08_t_{}.png'.format(snap_date)),
                img_as_ubyte(cube.sel(time=t).B08.values))
         imsave(os.path.join(data_dir, subdir, 'img_clp_t_{}.png'.format(snap_date)),
