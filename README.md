@@ -10,7 +10,7 @@ Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Senti
 
 ##### With Conda
 - Run ```conda create -n sentinel2-xcube-boat-detection python=3.6``` and ```activate sentinel2-xcube-boat-detection```
-- Clone this repository and run ```pip install requirements.txt```
+- Clone this repository and run ```pip install -r requirements.txt```
 
 ##### With Docker
 - TODO: Edit requirements.txt and Docker image.

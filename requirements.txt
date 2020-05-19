@@ -1,7 +1,10 @@
-numpy
-scikit-image
+geopandas
 matplotlib
+numpy
+pandas
+plotly
+scikit-image
+scikit-learn
 torch
 torchvision
 tqdm
-plotly
