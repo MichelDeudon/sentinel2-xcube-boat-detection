@@ -124,7 +124,7 @@ class S2_Dataset(Dataset):
             
         imset = {}
         imset['img'] = np.stack([imread(filename) for filename in self.img_paths[index]],0)
-        imset['y'] = float(self.img_paths[index][0].split('.')[0].split('_y_')[-1])
+        imset['y'] = float(self.img_paths[index][0].split('_y_')[-1].split('.')[0])
         imset['filename'] = self.img_paths[index][0]
         imset['n'] = float(len([1 for file in os.listdir('/'.join(imset['filename'].split('/')[:-1])) if file.startswith('img_08')]))
         
@@ -145,18 +145,19 @@ class S2_Dataset(Dataset):
         imset['y'] = torch.from_numpy(np.array([imset['y']]))
         imset['n'] = torch.from_numpy(np.array([imset['n']]))
         return imset
+
     
-    def plot_dataset(self, n_frames=14, n_rows=2, cmap='gray'):
-        """ Plot dataset images. """
-        fig = plt.figure(figsize=(16,5))
-        for t in range(n_frames):
-            plt.subplot(n_rows,n_frames//n_rows,1+t)
-            x = self[t]['img']
-            y = int(self[t]['y'])
-            plt.imshow(x[0], cmap=cmap)
-            plt.xticks([])
-            plt.yticks([])
-            plt.title('Label {}'.format(y))
-        fig.tight_layout()
-        plt.show()
-    
+def plot_dataset(dataset, n_frames=14, n_rows=2, cmap='gray'):
+    """ Plot dataset images. """
+    fig = plt.figure(figsize=(16,5))
+    for t in range(n_frames):
+        plt.subplot(n_rows,n_frames//n_rows,1+t)
+        imset = dataset[t]
+        x = imset['img']
+        y = int(imset['y'])
+        plt.imshow(x[0], cmap=cmap)
+        plt.xticks([])
+        plt.yticks([])
+        plt.title('Label {}'.format(y))
+    fig.tight_layout()
+    plt.show()
