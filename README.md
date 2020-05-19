@@ -3,8 +3,16 @@
 Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Sentinel-2 imagery](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) using temporal, spectral and spatial features.
 
 ## ⛵ Setup
-- Clone this repository with ```git clone ...``` in a Jupyter Lab environment on Euro Data Cube Dashboard (requires a valid account)
+
+##### With EDC
+- Clone this repository in a Jupyter Lab environment on Euro Data Cube Dashboard (requires a valid account)
 - Edit Sentinel Hub credentials and [Mapbox](https://studio.mapbox.com/) token in a .env file (requires a valid account).
+
+##### With Conda
+- Run ```conda create -n sentinel2-xcube-boat-detection python=3.6``` and ```activate sentinel2-xcube-boat-detection```
+- Clone this repository and run ```pip install -r requirements.txt```
+
+##### With Docker
 - TODO: Edit requirements.txt and Docker image.
 
 ![S2-Artwork](pics/EU-Ports/Venezia/Artwork_by_Elena_Aversa.jpg)
