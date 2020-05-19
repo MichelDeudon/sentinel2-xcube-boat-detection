@@ -1,4 +1,5 @@
 .idea/
+.ipynb_checkpoints/
 checkpoints/
 data/.ipynb_checkpoints/
 data/_chips/
