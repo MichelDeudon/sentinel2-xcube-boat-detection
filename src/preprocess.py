@@ -36,7 +36,7 @@ def preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=T
     return cube, background_ndwi
     
 
-def plot_cube_and_background(cube, background_ndwi, t=0):
+def plot_cube_and_background(cube, background_ndwi, t=0, figsize=(25,5), cmap='grey'):
     """ Plot a cube and background. 
     Args:
         cube: xCube object with time dimension and (B08,CLP) bands.
@@ -44,13 +44,13 @@ def plot_cube_and_background(cube, background_ndwi, t=0):
         t: int, time indexé
     """
     import matplotlib.pyplot as plt
-    plt.figure(figsize=(15,5))
+    plt.figure(figsize=figsize)
     plt.subplot(1,3,1)
-    cube.B08.isel(time=t).plot(cmap='gray')
+    cube.B08.isel(time=t).plot(cmap=cmap)
     plt.subplot(1,3,2)
-    cube.CLP.isel(time=t).plot(cmap='gray')
+    cube.CLP.isel(time=t).plot(cmap=cmap)
     plt.subplot(1,3,3)
-    background_ndwi.plot(cmap='gray')
+    background_ndwi.plot(cmap=cmap)
     plt.show()
     
     
