@@ -8,7 +8,7 @@ import torch.optim as optim
 from src.model import Model
 
 
-def train(train_dataloader, val_dataloader, input_dim=1, hidden_dim=32, kernel_size=3, n_epochs=10, ld=0.0, lr=0.1, lr_step=1, lr_decay=0.5, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1):
+def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, ld=0.3, water_ndwi=-1.0, n_epochs=10, lr=0.005, lr_step=2, lr_decay=0.95, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1, fold=0):
   """
   Trains SegNet for unsupervised segmentation of EO imagery, with a parallelized variant of K-means.
   Args:
@@ -16,60 +16,72 @@ def train(train_dataloader, val_dataloader, input_dim=1, hidden_dim=32, kernel_s
       input_dim: int, number of input channels
       hidden_dim: int, number of hidden channels
       kernel_size: int, kernel size
+      pool_size: int, pool size (chunk). Default 10 pixels (1 ha = 100m x 100m).
+      n_max: int, maximum number of boats per chunks. Default 1.
+      ld: float, coef for smooth count loss (sum, SmoothL1) vs. presence loss (max, BCE)
+      water_ndwi: float in [-1,1] for water detection. -1. will apply no masking.
       n_epochs: int, number of epochs
-      ld: float, coef for regularization (sparse feature map)
       lr, lr_step, lr_decay: float and int for the learning rate
       device: str, 'cpu' or 'gpu'
       checkpoints_dir: str, path to checkpoints
       seed: int, random seed for reproducibility
       verbose: int or bool, verbosity
+      fold: int
   """
 
   np.random.seed(seed)  # seed RNGs for reproducibility
   torch.manual_seed(seed)
 
-  model = Model(input_dim=input_dim, hidden_dim=hidden_dim, kernel_size=kernel_size, device=device)
+  model = Model(input_dim=input_dim, hidden_dim=hidden_dim, kernel_size=kernel_size, pool_size=pool_size, n_max=n_max, device=device, fold=fold) 
   checkpoint_dir_run = os.path.join(checkpoints_dir, model.folder)
   os.makedirs(checkpoint_dir_run, exist_ok=True)
   print('Number of trainable params', sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-  best_score, best_epoch = 1000., 0
+  best_metrics, best_score, best_epoch = {}, 1000., 0
   optimizer = optim.Adam(model.parameters(), lr=lr) # optim
   scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=lr_decay, verbose=verbose, patience=lr_step)
   for e in tqdm(range(n_epochs)):
     train_clf_error, train_reg_error, val_clf_error, val_reg_error = 0.0, 0.0, 0.0, 0.0
+    train_accuracy, train_precision, train_recall, train_f1 = 0.0, 0.0, 0.0, 0.0
+    val_accuracy, val_precision, val_recall, val_f1 = 0.0, 0.0, 0.0, 0.0
+    
     for data in train_dataloader:
         model = model.train()
         optimizer.zero_grad()  # zero the parameter gradients
-        if e<20:
-            clf_error, reg_error, loss = model.get_loss(data['img'].float(), y=data['y'].float(), ld=ld, metric='BCE')
-        else:
-            clf_error, reg_error, loss = model.get_loss(data['img'].float(), y=data['y'].float(), ld=ld, metric='L2')
-        loss.backward() # backprop
+        metrics = model.get_loss(data['img'].float(), y=data['y'].float(), ld=ld, water_ndwi=water_ndwi)
+        metrics['loss'].backward() # backprop
         optimizer.step()
-        train_clf_error += clf_error.detach().cpu().numpy()*len(data['img'])/len(train_dataloader.dataset)
-        train_reg_error += reg_error.detach().cpu().numpy()*len(data['img'])/len(train_dataloader.dataset)
+        train_clf_error += metrics['clf_error'].detach().cpu().numpy()*len(data['img'])/len(train_dataloader.dataset)
+        train_reg_error += metrics['reg_error'].detach().cpu().numpy()*len(data['img'])/len(train_dataloader.dataset)
+        train_accuracy += metrics['accuracy']*len(data['img'])/len(train_dataloader.dataset)
+        train_precision += metrics['precision']*len(data['img'])/len(train_dataloader.dataset)
+        train_recall += metrics['recall']*len(data['img'])/len(train_dataloader.dataset)
+        train_f1 += metrics['f1']*len(data['img'])/len(train_dataloader.dataset)
     
     for data in val_dataloader:
         model = model.eval()
         optimizer.zero_grad()  # zero the parameter gradients
-        if e<20:
-            clf_error, reg_error, loss = model.get_loss(data['img'].float(), y=data['y'].float(), ld=ld, metric='BCE')
-        else:
-            clf_error, reg_error, loss = model.get_loss(data['img'].float(), y=data['y'].float(), ld=ld, metric='L2')
-        val_clf_error += clf_error.detach().cpu().numpy()*len(data['img'])/len(val_dataloader.dataset)
-        val_reg_error += reg_error.detach().cpu().numpy()*len(data['img'])/len(val_dataloader.dataset)
-    
-    #if e>20 and verbose:
-    #    print('Epoch {}: train_clf_error {:.5f} / train_reg_error {:.5f} / val_clf_error {:.5f} / val_reg_error {:.5f}'.format(e+1, train_clf_error, train_reg_error, val_clf_error, val_reg_error))
+        metrics = model.get_loss(data['img'].float(), y=data['y'].float(), ld=ld, water_ndwi=water_ndwi)
+        val_clf_error += metrics['clf_error'].detach().cpu().numpy()*len(data['img'])/len(val_dataloader.dataset)
+        val_reg_error += metrics['reg_error'].detach().cpu().numpy()*len(data['img'])/len(val_dataloader.dataset)
+        val_accuracy += metrics['accuracy']*len(data['img'])/len(val_dataloader.dataset)
+        val_precision += metrics['precision']*len(data['img'])/len(val_dataloader.dataset)
+        val_recall += metrics['recall']*len(data['img'])/len(val_dataloader.dataset)
+        val_f1 += metrics['f1']*len(data['img'])/len(val_dataloader.dataset)
         
-    scheduler.step(val_clf_error+val_reg_error)
-    if val_clf_error+val_reg_error<best_score:
-        best_score = val_clf_error+val_reg_error
+    scheduler.step(val_clf_error+ld*val_reg_error)
+    if val_clf_error+ld*val_reg_error<best_score:
+        best_score = val_clf_error+ld*val_reg_error
         best_epoch = e+1
+        best_metrics = {'best_epoch':best_epoch, 'train_clf_error': train_clf_error, 'train_reg_error':train_reg_error,
+                        'val_clf_error':val_clf_error, 'val_reg_error':val_reg_error,
+                       'train_accuracy':train_accuracy, 'train_precision':train_precision, 'train_recall':train_recall,
+                        'train_f1':train_f1, 'val_accuracy':val_accuracy, 'val_precision':val_precision, 'val_recall':val_recall, 'val_f1':val_f1}
         torch.save(model.state_dict(), os.path.join(checkpoint_dir_run, 'model.pth'))
         if verbose:
             print('Epoch {}: train_clf_error {:.5f} / train_reg_error {:.5f} / val_clf_error {:.5f} / val_reg_error {:.5f}'.format(best_epoch, train_clf_error, train_reg_error, val_clf_error, val_reg_error))
+    
+  return best_metrics
             
     
 def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filter_on=None):
@@ -87,25 +99,31 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
         y = imset['y'].cpu().numpy()
         p = 1.0*(y>0)
         filename = imset['filename']
-        if filter_on is None or (int(y)==filter_on):
-            x, p_hat, y_hat = model(imset['img'].float().reshape(1, channels, height, width))
+        if filter_on is None or (int(y)>=filter_on):
+            x, density_map, p_hat, y_hat = model(imset['img'].float().reshape(1, channels, height, width))
             x = x.detach().cpu().numpy()[0]
+            heatmap = density_map.detach().cpu().numpy()[0][0] # H,W heatmap
             y_hat = float(y_hat.detach().cpu().numpy()[0])
             p_hat = float(p_hat.detach().cpu().numpy()[0])
             if (success and int(y_hat>0.5) == int(p)) or (not success and int(y_hat>0.5) != int(p)) :
                 print(filename)
-                fig = plt.figure(figsize=(5,5))    
-                plt.subplot(1,2,1)
+                fig = plt.figure(figsize=(10,5))    
+                plt.subplot(1,3,1)
                 plt.imshow(imset['img'][0], cmap='gray')
                 plt.title('y_true = {}'.format(int(y)))
                 plt.xticks([])
                 plt.yticks([])
-                plt.subplot(1,2,2)
+                plt.subplot(1,3,2)
                 if isinstance(hidden_channel, int):
                     plt.imshow(x[hidden_channel], cmap='gray')
                 elif isinstance(hidden_channel, list):
                     plt.imshow(np.stack([x[c] for c in hidden_channel],-1))
-                plt.title('y_hat = {:.4f} / p_hat = {:.4f}'.format(y_hat, p_hat))
+                plt.title('p_hat = {:.4f}'.format(p_hat))
+                plt.xticks([])
+                plt.yticks([])
+                plt.subplot(1,3,3)
+                plt.imshow(heatmap, cmap='gray')
+                plt.title('y_hat = {:.4f}'.format(y_hat))
                 plt.xticks([])
                 plt.yticks([])
                 fig.tight_layout()
