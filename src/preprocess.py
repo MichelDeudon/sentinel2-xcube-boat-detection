@@ -58,20 +58,22 @@ def cube2tensor(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=
     return x, timestamps
     
 
-def plot_cube_and_background(cube, background_ndwi, t=0):
+def plot_cube_and_background(cube, background_ndwi, t=0, figsize=(25,5), cmap='grey'):
     """ Plot a cube and background. 
     Args:
         cube: xCube object with time dimension and (B08,CLP) bands.
         background: xCube object with NDWI bands.
         t: int, time indexé
     """
-    plt.figure(figsize=(15,5))
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=figsize)
+
     plt.subplot(1,3,1)
-    cube.B08.isel(time=t).plot(cmap='gray')
+    cube.B08.isel(time=t).plot(cmap=cmap)
     plt.subplot(1,3,2)
-    cube.CLP.isel(time=t).plot(cmap='gray')
+    cube.CLP.isel(time=t).plot(cmap=cmap)
     plt.subplot(1,3,3)
-    background_ndwi.plot(cmap='gray')
+    background_ndwi.plot(cmap=cmap)
     plt.show()
     
     
@@ -114,3 +116,37 @@ def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', la
         json.dump(label_file, f)
         print('Saved {} labels for {}'.format(len(label), subdir))
     return 1
+
+
+def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips'):
+    """ Save preprocessed imagery to disk.
+    Args:
+        cube: xCube object with time dimension and (B02,B03,B04,B08,NDWI) bands.
+        background: xCube object with (B02,B03,B04,B08,NDWI) bands.
+        lat_lon: tuple of floats, latitude and longitude in degrees.
+        data_dir: str, path to chips folder.
+    """
+    import os
+    import sys
+    import warnings
+    from skimage.io import imsave
+    from skimage import img_as_ubyte
+
+    if not sys.warnoptions:
+        warnings.simplefilter("ignore")
+
+    os.makedirs(data_dir, exist_ok=True)
+    subdir = 'lat_{}_lon_{}'.format(str(lat_lon[0]).replace('.', '_'), str(lat_lon[1]).replace('.', '_'))
+    os.makedirs(os.path.join(data_dir, subdir), exist_ok=True)
+    # save background + imagery and labels
+    imsave(os.path.join(data_dir, subdir, 'bg_ndwi.png'), img_as_ubyte(background_ndwi.values))
+    for t in cube.time: # y is the account of ships in the image
+        snap_date = str(t.values)[:10]
+
+        imsave(os.path.join(data_dir, subdir, 'img_03_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).B03.values))
+        imsave(os.path.join(data_dir, subdir, 'img_08_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).B08.values))
+        imsave(os.path.join(data_dir, subdir, 'img_clp_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).CLP.values))
+        print('Saved cubes with timestamp {} under {}'.format(snap_date, subdir))
