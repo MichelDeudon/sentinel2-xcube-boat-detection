@@ -51,7 +51,7 @@ def plot_trend(counts, timestamps):
 class Model(nn.Module):
     ''' A neural network to detect and count boats in Sentinel-2 imagery '''
 
-    def __init__(self, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, pad=True, device='cuda:0', fold=0):
+    def __init__(self, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, pad=True, device='cuda:0', fold=0):
         '''
         Args:
             input_dim : int, number of input channels. If 2, recommended bands: B08 + B03 or B08 + background NDWI.
@@ -59,6 +59,7 @@ class Model(nn.Module):
             kernel_size: int, kernel size
             pool_size: int, pool size (chunk). Default 10 pixels (1 ha = 100m x 100m).
             n_max: int, maximum number of boats per chunks. Default 1.
+            drop_proba: int
             pad: bool, padding to keep input shape. Necessary for Residual Block (TODO).
             device: str, pytorch device
             fold: int
@@ -82,6 +83,7 @@ class Model(nn.Module):
             nn.PReLU(),
         )
         
+        self.dropout = nn.Dropout2d(p=drop_proba, inplace=False)
         self.max_pool = nn.MaxPool2d(pool_size, stride=pool_size)
                 
         self.encode_patch = nn.Sequential(
@@ -111,7 +113,9 @@ class Model(nn.Module):
         batch_size, channels, height, width = x.shape 
         pixel_embedding = self.embed(x) 
         pixel_embedding = pixel_embedding + self.residual(pixel_embedding) # h1 (B, C_h, H, W)
-        z = self.encode_patch(self.max_pool(pixel_embedding)) # z (B, n_max+1, H//pool_size, W//pool_size) multinomial distribution Z_i=k if k boats, 0 <= k < n_max+1
+        patch_embedding = self.max_pool(self.dropout(pixel_embedding))
+        z = self.encode_patch(patch_embedding) # z (B, n_max+1, H//pool_size, W//pool_size) multinomial distribution Z_i=k if k boats, 0 <= k < n_max+1
+        #z = self.encode_patch(self.max_pool(pixel_embedding)) # z (B, n_max+1, H//pool_size, W//pool_size) multinomial distribution Z_i=k if k boats, 0 <= k < n_max+1
         p_hat = torch.sum(z[:,1:], dim=1, keepdim=True) # probability there is a boat or more (for each chunk)
         p_hat = torch.max(torch.max(p_hat,dim=-1).values ,dim=-1).values # (B, 1) tight lower bound on probability there is a boat in full image
         water_mask = 1.0*(x[:,1:2]<0.5*(-water_ndwi+1)) # background, negative, rescaled ndwi >> mask density_heatmap # (B, 1, H, W),

@@ -35,7 +35,7 @@ def plot_geoloc(train_coordinates, val_coordinates=None):
     return fig
 
 
-def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_size=0.1, plot_coords=True, plot_class_imbalance=True, use_KFold=False):
+def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_size=0.1, plot_coords=True, plot_class_imbalance=True, use_KFold=False, seed=123):
     """ Return list of list of paths to filenames for training and validation (KFold)
     Args:
         data_dir: str, path to chips folder.
@@ -68,14 +68,14 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
     
     if use_KFold is True:
         train_img_paths, val_img_paths = [], []
-        kf = KFold(n_splits=int(1./test_size), random_state=1, shuffle=True)
+        kf = KFold(n_splits=int(1./test_size), random_state=seed, shuffle=True)
         for train_index, val_index in kf.split(coordinates):
             train_coordinates = coordinates[train_index]
             val_coordinates = coordinates[val_index]
             train_img_paths.append(get_img_paths(train_coordinates))
             val_img_paths.append(get_img_paths(val_coordinates))
     else:
-        train_coordinates, val_coordinates = train_test_split(coordinates, test_size=test_size, random_state=1, shuffle=True)
+        train_coordinates, val_coordinates = train_test_split(coordinates, test_size=test_size, random_state=seed, shuffle=True)
         train_img_paths = [get_img_paths(train_coordinates)]
         val_img_paths = [get_img_paths(val_coordinates)]
         

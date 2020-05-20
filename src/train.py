@@ -8,7 +8,7 @@ import torch.optim as optim
 from src.model import Model
 
 
-def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, ld=0.3, water_ndwi=-1.0, n_epochs=10, lr=0.005, lr_step=2, lr_decay=0.95, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1, fold=0):
+def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, ld=0.3, water_ndwi=-1.0, n_epochs=10, lr=0.005, lr_step=2, lr_decay=0.95, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1, fold=0):
   """
   Trains SegNet for unsupervised segmentation of EO imagery, with a parallelized variant of K-means.
   Args:
@@ -32,7 +32,7 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
   np.random.seed(seed)  # seed RNGs for reproducibility
   torch.manual_seed(seed)
 
-  model = Model(input_dim=input_dim, hidden_dim=hidden_dim, kernel_size=kernel_size, pool_size=pool_size, n_max=n_max, device=device, fold=fold) 
+  model = Model(input_dim=input_dim, hidden_dim=hidden_dim, kernel_size=kernel_size, pool_size=pool_size, n_max=n_max, drop_proba=drop_proba, device=device, fold=fold) 
   checkpoint_dir_run = os.path.join(checkpoints_dir, model.folder)
   os.makedirs(checkpoint_dir_run, exist_ok=True)
   print('Number of trainable params', sum(p.numel() for p in model.parameters() if p.requires_grad))
@@ -99,7 +99,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
         y = imset['y'].cpu().numpy()
         p = 1.0*(y>0)
         filename = imset['filename']
-        if filter_on is None or (int(y)>=filter_on):
+        if filter_on is None or (int(y)>=filter_on and filter_on!=0) or (int(y)==0 and filter_on==0):
             x, density_map, p_hat, y_hat = model(imset['img'].float().reshape(1, channels, height, width))
             x = x.detach().cpu().numpy()[0]
             heatmap = density_map.detach().cpu().numpy()[0][0] # H,W heatmap
