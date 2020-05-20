@@ -51,7 +51,7 @@ def plot_trend(counts, timestamps):
 class Model(nn.Module):
     ''' A neural network to detect and count boats in Sentinel-2 imagery '''
 
-    def __init__(self, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, pad=True, device='cuda:0', fold=0):
+    def __init__(self, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, pad=True, device='cuda:0', version=0.0):
         '''
         Args:
             input_dim : int, number of input channels. If 2, recommended bands: B08 + B03 or B08 + background NDWI.
@@ -62,11 +62,11 @@ class Model(nn.Module):
             drop_proba: int
             pad: bool, padding to keep input shape. Necessary for Residual Block (TODO).
             device: str, pytorch device
-            fold: int
+            version: float or str, model identifier
         '''
         
         super(Model, self).__init__()
-        self.folder = 'i{}_h{}_k{}_p{}_n{}_f{}'.format(input_dim, hidden_dim, kernel_size, pool_size, n_max, fold)
+        self.folder = 'i{}_h{}_k{}_p{}_n{}_v{}'.format(input_dim, hidden_dim, kernel_size, pool_size, n_max, version)
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
 
         self.embed = nn.Sequential(
@@ -115,12 +115,13 @@ class Model(nn.Module):
         pixel_embedding = pixel_embedding + self.residual(pixel_embedding) # h1 (B, C_h, H, W)
         patch_embedding = self.max_pool(self.dropout(pixel_embedding))
         z = self.encode_patch(patch_embedding) # z (B, n_max+1, H//pool_size, W//pool_size) multinomial distribution Z_i=k if k boats, 0 <= k < n_max+1
-        #z = self.encode_patch(self.max_pool(pixel_embedding)) # z (B, n_max+1, H//pool_size, W//pool_size) multinomial distribution Z_i=k if k boats, 0 <= k < n_max+1
         p_hat = torch.sum(z[:,1:], dim=1, keepdim=True) # probability there is a boat or more (for each chunk)
         p_hat = torch.max(torch.max(p_hat,dim=-1).values ,dim=-1).values # (B, 1) tight lower bound on probability there is a boat in full image
-        water_mask = 1.0*(x[:,1:2]<0.5*(-water_ndwi+1)) # background, negative, rescaled ndwi >> mask density_heatmap # (B, 1, H, W),
-        proba_water = self.max_pool(water_mask)
-        density_map = proba_water*torch.sum(torch.cat([float(k)*z[:,k:k+1] for k in range(z.size(1))],1), dim=1, keepdim=True) # density map (counts) pool_size res (10pix = 100m)   
+        density_map = torch.sum(torch.cat([float(k)*z[:,k:k+1] for k in range(z.size(1))],1), dim=1, keepdim=True) # density map (counts) pool_size res (10pix = 100m)   
+        if channels > 1:
+            water_mask = 1.0*(x[:,1:2]<0.5*(-water_ndwi+1)) # background, negative, rescaled ndwi >> mask density_heatmap # (B, 1, H, W),
+            proba_water = self.max_pool(water_mask)
+            density_map = proba_water*density_map # density map (counts) pool_size res (10pix = 100m)
         y_hat = torch.sum(density_map, (2,3)) # estimate number of boats in image (where there are boats)
         return pixel_embedding, density_map, p_hat, y_hat
     
@@ -142,10 +143,13 @@ class Model(nn.Module):
         x = x.to(self.device)
         x_hidden, density_map, p_hat, y_hat = self.forward(x, water_ndwi=water_ndwi)  # (B,1,n_filters,H,W)
                         
-        # loss for boat presence (proba vs. binary)
+        # compute loss
         p = 1.0*(y>0)
         criterion = torch.nn.BCELoss(reduction='mean') ##### change to BCEWithLogitsLoss (numerical instability)
-        clf_error = criterion(p_hat, p)
+        clf_error = criterion(p_hat, p) # loss for boat presence (proba vs. binary)
+        criterion = torch.nn.SmoothL1Loss(reduction='mean') 
+        reg_error = criterion(y_hat, y) # loss for boat counts (expected vs. label)
+        loss = (1-ld)*clf_error + ld*reg_error
         
         # metrics for boat presence
         p_ = 1.0*(p_hat>0.5)
@@ -154,13 +158,8 @@ class Model(nn.Module):
         precision = ((torch.sum(p_*p)+eps)/(torch.sum(p_hat)+eps)).detach().cpu().numpy()
         recall = ((torch.sum(p_*p)+eps)/(torch.sum(p)+eps)).detach().cpu().numpy()
         f1 = 2*precision*recall/(precision+recall)
-        
-        # loss for boat counts (expected vs. label)
-        criterion = torch.nn.SmoothL1Loss(reduction='mean') 
-        reg_error = criterion(y_hat, y)
-        
-        loss = (1-ld)*clf_error + ld*reg_error
         metrics = {'loss':loss, 'clf_error':clf_error, 'reg_error':reg_error, 'accuracy':accuracy, 'precision':precision, 'recall':recall, 'f1':f1}
+        
         return metrics
     
     def load_checkpoint(self, checkpoint_file):
@@ -189,11 +188,23 @@ class Model(nn.Module):
             counts: list of int
         """
         
-        _, density_map, p_hat, y_hat = self.forward(x.float(), water_ndwi=water_ndwi)
-        density_map = density_map.detach().cpu().numpy() # (B, 1, H, W)
-        y_hat = y_hat.detach().cpu().numpy() # (B, 1)
-        heatmaps = [density_map[t][0] for t in range(x.size(0))]
-        counts = [float(y_hat[t]) for t in range(x.size(0))]
+        if x.size(0)<10:
+            _, density_map, p_hat, y_hat = self.forward(x.float(), water_ndwi=water_ndwi)
+            density_map = density_map.detach().cpu().numpy() # (B, 1, H, W)
+            y_hat = y_hat.detach().cpu().numpy() # (B, 1)
+            heatmaps = [density_map[t][0] for t in range(x.size(0))]
+            counts = [float(y_hat[t]) for t in range(x.size(0))]
+        else:
+            # memory overload, chunk data by time
+            heatmaps = []
+            counts = []
+            for t in range(x.size(0)):
+                _, density_map, p_hat, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi)
+                density_map = density_map.detach().cpu().numpy() # (B, 1, H, W)
+                y_hat = y_hat.detach().cpu().numpy() # (B, 1)
+                heatmaps.append(density_map[0][0])
+                counts.append(float(y_hat[0]))
+        
         if plot_heatmap is True and timestamps is not None:
             plot_heatmaps(timestamps, x, heatmaps, counts, max_frames=max_frames)
         if plot_indicator is True:
