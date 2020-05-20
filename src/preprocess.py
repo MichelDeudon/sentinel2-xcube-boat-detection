@@ -1,3 +1,14 @@
+import os
+import sys
+import json
+import warnings
+import numpy as np
+from skimage.io import imsave
+from skimage import img_as_ubyte
+import matplotlib.pyplot as plt
+import torch
+
+
 def preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=True):
     """ Preprocess cube for boat detect.
     
@@ -34,6 +45,17 @@ def preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=T
     cube = cube*(cube<1.0) # clip other bands to [0,1]
     background_ndwi = cube.NDWI.min(dim='time')
     return cube, background_ndwi
+
+
+def cube2tensor(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=True):
+    """ Convert xcube to tensor and metadata"""
+    cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how=nans_how, verbose=1, plot_NDWI=plot_NDWI)
+    timestamps = [str(t)[:10] for t in cube.time.values] # format yyyy-mm-dd
+    array = np.stack([np.stack([cube.B08.values[t], background_ndwi.values], 0) for t in range(len(timestamps))], 0) # (T,C,H,W)
+    #clp = np.stack([np.stack([cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,C,H,W)
+    x = torch.from_numpy(array)
+    #assert array.shape[1] == self.input_dim
+    return x, timestamps
     
 
 def plot_cube_and_background(cube, background_ndwi, t=0, figsize=(25,5), cmap='grey'):
@@ -45,6 +67,7 @@ def plot_cube_and_background(cube, background_ndwi, t=0, figsize=(25,5), cmap='g
     """
     import matplotlib.pyplot as plt
     plt.figure(figsize=figsize)
+
     plt.subplot(1,3,1)
     cube.B08.isel(time=t).plot(cmap=cmap)
     plt.subplot(1,3,2)
@@ -64,13 +87,6 @@ def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', la
         data_dir: str, path to chips folder.
         label_filename: str, path to filename of labels dict (for recovery).
     """
-    import os
-    import sys
-    import json
-    import warnings
-    import numpy as np
-    from skimage.io import imsave
-    from skimage import img_as_ubyte
 
     if len(label) != len(cube.time):
         print('Error: Cube and Label have different length')

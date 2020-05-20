@@ -3,8 +3,51 @@
 
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
+import numpy as np
 
 
+def plot_heatmaps(timestamps, x, heatmaps, counts, max_frames=5):
+    '''
+    Args:
+        timestamps: list of dates
+        x: tensor (T,2,H,W) NIR and background NDWI
+        heatmaps: list of arrays
+        counts: list of float
+        max_frame: int
+    '''
+    fig = plt.figure(figsize=(20,5))
+    n_frames = np.min([len(timestamps), max_frames])
+    for idx in range(n_frames):
+        plt.subplot(2,n_frames,1+idx)
+        plt.imshow((-x[idx][0]), cmap='RdYlBu')
+        plt.title(timestamps[idx])
+        plt.xticks([])
+        plt.yticks([])
+        plt.subplot(2,n_frames,1+idx+n_frames)
+        plt.imshow(heatmaps[idx])
+        plt.title('{:.2f} boats'.format(counts[idx]))
+        plt.xticks([])
+        plt.yticks([])
+    fig.tight_layout()
+    plt.show()
+    if len(timestamps)>= 2*n_frames:
+        plot_heatmaps(timestamps[n_frames:], x[n_frames:], heatmaps[n_frames:], counts[n_frames:], max_frames=max_frames)
+        
+def plot_trend(counts, timestamps):
+    '''
+    Args:
+        timestamps: list of dates
+        counts: list of float
+    '''
+    import matplotlib.pyplot as plt
+    plt.figure(1, figsize=(16,5))
+    plt.plot(counts)
+    plt.xticks(np.arange(len(counts)), timestamps, rotation=45)
+    plt.ylabel('boat counts')
+    plt.show()
+    
+    
 class Model(nn.Module):
     ''' A neural network to detect and count boats in Sentinel-2 imagery '''
 
@@ -128,11 +171,15 @@ class Model(nn.Module):
             self.load_state_dict(torch.load(checkpoint_file))
             
             
-    def chip_and_count(self, x, water_ndwi=0.4):
+    def chip_and_count(self, x, water_ndwi=0.4, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False):
         """ Chip an image, predict presence for each chip and return heatmap of presence and total counts.
         Args:
             x: tensor (N, C_in, H, W)
             water_ndwi: float in [-1,1] for water detection.
+            plot_heatmap:
+            timestamps:
+            max_frames:
+            plot_trend:
         Returns:
             heatmaps: list of np.array of size (H/chunk_size, W/chunk_size)
             counts: list of int
@@ -143,4 +190,8 @@ class Model(nn.Module):
         y_hat = y_hat.detach().cpu().numpy() # (B, 1)
         heatmaps = [density_map[t][0] for t in range(x.size(0))]
         counts = [float(y_hat[t]) for t in range(x.size(0))]
+        if plot_heatmap is True and timestamps is not None:
+            plot_heatmaps(timestamps, x, heatmaps, counts, max_frames=max_frames)
+        if plot_indicator is True:
+            plot_trend(counts, timestamps)
         return heatmaps, counts
