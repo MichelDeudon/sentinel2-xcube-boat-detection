@@ -151,4 +151,6 @@ def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips'):
                img_as_ubyte(cube.sel(time=t).B08.values))
         imsave(os.path.join(data_dir, subdir, 'img_clp_t_{}.png'.format(snap_date)),
                img_as_ubyte(cube.sel(time=t).CLP.values))
+        imsave(os.path.join(data_dir, subdir, 'img_ndwi_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).NDWI.values))
         print('Saved cubes with timestamp {} under {}'.format(snap_date, subdir))
