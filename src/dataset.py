@@ -66,14 +66,20 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
         img_paths = np.array(img_paths)
         return img_paths
     
+    # select model by K Fold (high recall, low precision with min boat counts)
     if use_KFold is True:
         train_img_paths, val_img_paths = [], []
+        lowest_val_mean = 9.
         kf = KFold(n_splits=int(1./test_size), random_state=seed, shuffle=True)
         for train_index, val_index in kf.split(coordinates):
             train_coordinates = coordinates[train_index]
             val_coordinates = coordinates[val_index]
-            train_img_paths.append(get_img_paths(train_coordinates))
-            val_img_paths.append(get_img_paths(val_coordinates))
+            val_mean = np.mean([int(filename[0].split('y_')[-1][0]) for filename in get_img_paths(val_coordinates)]) # average number of boats in validation set
+            if val_mean < lowest_val_mean: # min Fold select
+                lowest_val_mean = val_mean
+                train_img_paths = [get_img_paths(train_coordinates)]
+                val_img_paths = [get_img_paths(val_coordinates)]
+    # select model by random cross validation
     else:
         train_coordinates, val_coordinates = train_test_split(coordinates, test_size=test_size, random_state=seed, shuffle=True)
         train_img_paths = [get_img_paths(train_coordinates)]
@@ -91,11 +97,11 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
     if plot_class_imbalance is True:
         plt.figure(1, figsize=(20,5))
         for i,(train_list, val_list) in enumerate(zip(train_img_paths, val_img_paths)):
-            plt.subplot(2,len(train_img_paths),1+i)
+            plt.subplot(len(train_img_paths),2,1+i)
             plt.hist([int(filename[0].split('y_')[-1][0]) for filename in train_list], color='blue')
             plt.xlabel('label')
             plt.ylabel('counts (train)')
-            plt.subplot(2,len(train_img_paths),1+i+len(train_img_paths))
+            plt.subplot(len(train_img_paths),2,1+i+len(train_img_paths))
             plt.hist([int(filename[0].split('y_')[-1][0]) for filename in val_list], color='red')
             plt.xlabel('label')
             plt.ylabel('counts (val)')

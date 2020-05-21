@@ -8,7 +8,7 @@ import torch.optim as optim
 from src.model import Model
 
 
-def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, ld=0.3, water_ndwi=-1.0, n_epochs=10, lr=0.005, lr_step=2, lr_decay=0.95, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1, fold=0):
+def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, ld=0.3, water_ndwi=-1.0, n_epochs=10, lr=0.005, lr_step=2, lr_decay=0.95, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1, version=0.0):
   """
   Trains SegNet for unsupervised segmentation of EO imagery, with a parallelized variant of K-means.
   Args:
@@ -26,13 +26,13 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
       checkpoints_dir: str, path to checkpoints
       seed: int, random seed for reproducibility
       verbose: int or bool, verbosity
-      fold: int
+      version: float or str
   """
 
   np.random.seed(seed)  # seed RNGs for reproducibility
   torch.manual_seed(seed)
 
-  model = Model(input_dim=input_dim, hidden_dim=hidden_dim, kernel_size=kernel_size, pool_size=pool_size, n_max=n_max, drop_proba=drop_proba, device=device, fold=fold) 
+  model = Model(input_dim=input_dim, hidden_dim=hidden_dim, kernel_size=kernel_size, pool_size=pool_size, n_max=n_max, drop_proba=drop_proba, device=device, version=version) 
   checkpoint_dir_run = os.path.join(checkpoints_dir, model.folder)
   os.makedirs(checkpoint_dir_run, exist_ok=True)
   print('Number of trainable params', sum(p.numel() for p in model.parameters() if p.requires_grad))
@@ -84,15 +84,19 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
   return best_metrics
             
     
-def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filter_on=None):
-    """ Run model on dataset and display success or failures.
+def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filter_on=None, plot_heatmap=False):
+    """ Run model on dataset and display success or failures. Scatter plot predicted counts vs. true counts.
     Args:
         model: pytorch Model
         dataset: torch.Dataset
         hidden_channel: int, id of hidden channel to display
         success: bool. if True will return success, otherwise failures. 
         filter_on: int, class to filter results. Default, None.
+        plot_heatmap: bool
     """
+    
+    predicted_count = []
+    true_count = []
     
     for imset in dataset:
         channels, height, width = imset['img'].shape
@@ -105,8 +109,11 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
             heatmap = density_map.detach().cpu().numpy()[0][0] # H,W heatmap
             y_hat = float(y_hat.detach().cpu().numpy()[0])
             p_hat = float(p_hat.detach().cpu().numpy()[0])
-            if (success and int(y_hat>0.5) == int(p)) or (not success and int(y_hat>0.5) != int(p)) :
-                print(filename)
+            
+            predicted_count.append(y_hat)
+            true_count.append(y)
+            
+            if plot_heatmap and (success is None or (success and int(y_hat>0.5) == int(p)) or (not success and int(y_hat>0.5) != int(p)) ):
                 fig = plt.figure(figsize=(10,5))    
                 plt.subplot(1,3,1)
                 plt.imshow(imset['img'][0], cmap='gray')
@@ -128,3 +135,10 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
                 plt.yticks([])
                 fig.tight_layout()
                 plt.show()
+                
+    plt.plot(np.arange(6), color='black', linestyle='dashed', alpha=0.5)
+    plt.scatter(true_count, predicted_count, color='blue', marker='+', alpha=0.4)
+    plt.xlabel('true counts')
+    plt.ylabel('predicted counts')
+    plt.title('Predicted vs. True counts')
+    plt.show()
