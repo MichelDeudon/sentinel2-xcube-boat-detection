@@ -72,7 +72,32 @@ def test_CubeConfig():
 def test_preprocess():
     ''' Test utils to preprocess sentinel2-cube'''
     from preprocess import preprocess, plot_cube_and_background, save_labels
-    #cube, background_ndwi = preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=True)
+    import numpy as np
+    from xarray.core.dataset import Dataset
+    import pandas as pd
+    t = 5
+    B03 = np.random.rand(t, 100, 100)
+    B08 = np.random.rand(t, 100, 100)
+    CLP = np.zeros((t, 100, 100))
+
+    lon = np.repeat(-99.83, 100).tolist()
+    lat = np.repeat(42.25, 100).tolist()
+
+    cube = Dataset({'B03':(["time", 'lat', 'lon'], B03),
+             'B08': (["time", 'lat', 'lon'], B08),
+             'CLP': (["time", 'lat', 'lon'], CLP)},
+             coords = {'lon': lon, 'lat': lat,
+                       'time': pd.date_range('2014-09-06', periods=t),
+                       'reference_time': pd.Timestamp('2014-09-05')}
+            )
+
+    cube, background_ndwi = preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=False)
+    assert hasattr(cube, "NDWI")
+    # assert hasattr(background_ndwi, "NDWI")
+    assert background_ndwi.name == "NDWI"
+    assert background_ndwi.data.shape == (100, 100)
+
+
 
         
 def test_dataset():

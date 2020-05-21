@@ -5,11 +5,13 @@ import warnings
 import numpy as np
 from skimage.io import imsave
 from skimage import img_as_ubyte
-import matplotlib.pyplot as plt
 import torch
+from xarray.core.dataset import Dataset
+from xarray.core.dataarray import DataArray
+from typing import Tuple
 
-
-def preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=True):
+def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any', verbose: int = 1,
+               plot_NDWI: bool = True) -> Tuple[Dataset, DataArray]:
     """ Preprocess cube for boat detect.
     
     Args:
@@ -38,7 +40,7 @@ def preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=T
     ndwi = (cube.B03-cube.B08)/(cube.B03+cube.B08) # NDWI, reference (McFeeters, 1996)
     ndwi.attrs['long_name']='-NDWI'
     ndwi.attrs['units']='unitless'
-    cube['NDWI']= -ndwi # add negative NDWI (high value for non water)
+    cube['NDWI'] = -ndwi # add negative NDWI (high value for non water)
     if plot_NDWI:
         (-cube).NDWI.plot.imshow(col='time', col_wrap=4, cmap='RdYlBu') ##### plot False Color instead!!!
     cube['NDWI'] = (cube.NDWI+1.0)/2.0 # from [-1,1] to [0,1]

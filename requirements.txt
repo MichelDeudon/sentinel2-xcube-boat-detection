@@ -12,3 +12,7 @@ superintendent
 pandas
 sklearn
 tqdm
+shapely
+geopandas
+xarray
+pytest

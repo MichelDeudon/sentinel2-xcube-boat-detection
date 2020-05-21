@@ -6,7 +6,7 @@ import plotly.express as px
 from sklearn.model_selection import train_test_split, KFold
 import skimage
 from skimage.io import imread
-
+import glob
 import torch
 from torch.utils.data import Dataset
 
@@ -35,7 +35,9 @@ def plot_geoloc(train_coordinates, val_coordinates=None):
     return fig
 
 
-def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_size=0.1, plot_coords=True, plot_class_imbalance=True, use_KFold=False, seed=123):
+
+def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_size=0.1, plot_coords=True,
+                           plot_class_imbalance=True, use_KFold=False, seed=123):
     """ Return list of list of paths to filenames for training and validation (KFold)
     Args:
         data_dir: str, path to chips folder.
@@ -50,22 +52,14 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
     """
     
     coordinates = np.array(os.listdir(data_dir))
-    
-    def get_img_paths(coords):
+
+    def get_img_paths(coordinates):
         img_paths = []
-        for subdir in coords:
-            for filename in os.listdir(os.path.join(data_dir,subdir)):
-                if filename.startswith(band_list[0]):
-                    filenames = [os.path.join(data_dir,subdir,filename)]
-                    for band in band_list[1:]:
-                        if band.startswith('bg'):
-                            filenames.append(os.path.join(data_dir,subdir,band+'.png'))
-                        elif band.startswith('img'):
-                            filenames.append(os.path.join(data_dir,subdir,filename.replace(band_list[0],band)))
-                    img_paths.append(filenames)
-        img_paths = np.array(img_paths)
-        return img_paths
-    
+        for subdir in coordinates:
+            for band in band_list:
+                img_paths.extend(glob.glob(os.path.join(data_dir, subdir, band + "*.png")))
+        return np.array(img_paths)
+    # select model by K Fold (high recall, low precision with min boat counts)
     if use_KFold is True:
         train_img_paths, val_img_paths = [], []
         kf = KFold(n_splits=int(1./test_size), random_state=seed, shuffle=True)
