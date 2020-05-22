@@ -120,7 +120,7 @@ def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', la
     return 1
 
 
-def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips'):
+def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips', verbose = True):
     """ Save preprocessed imagery to disk.
     Args:
         cube: xCube object with time dimension and (B02,B03,B04,B08,NDWI) bands.
@@ -153,4 +153,5 @@ def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips'):
                img_as_ubyte(cube.sel(time=t).CLP.values))
         imsave(os.path.join(data_dir, subdir, 'img_ndwi_t_{}.png'.format(snap_date)),
                img_as_ubyte(cube.sel(time=t).NDWI.values))
-        print('Saved cubes with timestamp {} under {}'.format(snap_date, subdir))
+        if verbose:
+            print('Saved cubes with timestamp {} under {}'.format(snap_date, subdir))
