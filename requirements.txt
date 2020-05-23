@@ -9,7 +9,6 @@ torch
 torchvision
 plotly
 superintendent
-pandas
 sklearn
 tqdm
 shapely
