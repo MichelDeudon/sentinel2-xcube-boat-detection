@@ -55,7 +55,7 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
         img_paths = []
         for subdir in coords:
             for filename in os.listdir(os.path.join(data_dir,subdir)):
-                if filename.startswith(band_list[0]):
+                if filename.startswith(band_list[0]) and '_y_' in filename: #####
                     filenames = [os.path.join(data_dir,subdir,filename)]
                     for band in band_list[1:]:
                         if band.startswith('bg'):
