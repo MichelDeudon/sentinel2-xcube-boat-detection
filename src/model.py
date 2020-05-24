@@ -175,7 +175,7 @@ class Model(nn.Module):
             self.load_state_dict(torch.load(checkpoint_file))
             
             
-    def chip_and_count(self, x, water_ndwi=0.4, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False, outliers=20):
+    def chip_and_count(self, x, water_ndwi=0.5, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False, outliers=100):
         """ Chip an image, predict presence for each chip and return heatmap of presence and total counts.
         Args:
             x: tensor (N, C_in, H, W)
@@ -209,7 +209,9 @@ class Model(nn.Module):
                 heatmaps.append(density_map[0][0])
                 counts.append(float(y_hat[0]))
         
-        x = torch.cat(new_x, 0)
+        if len(new_x)>0:
+            x = torch.cat(new_x, 0)
+            
         if plot_heatmap is True and timestamps is not None:
             plot_heatmaps(new_timestamps, x, heatmaps, counts, max_frames=max_frames)
         if plot_indicator is True:
