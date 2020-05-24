@@ -36,11 +36,7 @@ def plot_geoloc(train_coordinates, val_coordinates=None):
 
 
 
-<<<<<<< HEAD
 def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.csv', band_list=['img_ndwi'], test_size=0.1, plot_coords=True,
-=======
-def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_size=0.1, plot_coords=True,
->>>>>>> 31016f5118ef618a20ec5623630c26e9b7ecee2a
                            plot_class_imbalance=True, use_KFold=False, seed=123):
     """ Return list of list of paths to filenames for training and validation (KFold)
     Args:
@@ -56,7 +52,6 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
     """
     
     coordinates = np.array(os.listdir(data_dir))
-<<<<<<< HEAD
     df_labels = pd.read_csv(labels_filename)
 
     def get_img_paths(coords):
@@ -74,16 +69,6 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
                         img_paths.append(filenames)
         img_paths = np.array(img_paths)
         return img_paths
-=======
-
-    def get_img_paths(coordinates):
-        img_paths = []
-
-        for subdir in coordinates:
-            for band in band_list:
-                img_paths.extend(glob.glob(os.path.join(data_dir, subdir, band + "*.png")))
-        return np.array(img_paths)
->>>>>>> 31016f5118ef618a20ec5623630c26e9b7ecee2a
     
     #def get_img_paths(coordinates):
     #    img_paths = []
@@ -105,6 +90,7 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
                 lowest_val_mean = val_mean
                 train_img_paths = [get_img_paths(train_coordinates)]
                 val_img_paths = [get_img_paths(val_coordinates)]
+    
     # select model by random cross validation
     else:
         train_coordinates, val_coordinates = train_test_split(coordinates, test_size=test_size, random_state=seed, shuffle=True)
