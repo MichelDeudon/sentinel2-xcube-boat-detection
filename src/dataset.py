@@ -51,31 +51,27 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
         fig: mapbox plot of coordinates if plot_coords is True. Otherwise, returns None.
     """
     
-    coordinates = np.array(os.listdir(data_dir))
-    df_labels = pd.read_csv(labels_filename)
-
-    def get_img_paths(coords):
-        img_paths = []
-        for subdir in coords:
-            for filename in os.listdir(os.path.join(data_dir,subdir)):
-                if filename.startswith(band_list[0]):
-                    if int(df_labels[df_labels['file_path']==os.path.join(data_dir,subdir,filename)]['count'].values)>=0:
-                        filenames = [os.path.join(data_dir,subdir,filename)]
-                        for band in band_list[1:]:
-                            if band.startswith('bg'):
-                                filenames.append(os.path.join(data_dir,subdir,band+'.png'))
-                            elif band.startswith('img'):
-                                filenames.append(os.path.join(data_dir,subdir,filename.replace(band_list[0],band)))
-                        img_paths.append(filenames)
-        img_paths = np.array(img_paths)
-        return img_paths
+    coordinates = np.array([f for f in os.listdir(data_dir) if not f.startswith('.')])
+    df_labels = pd.read_csv(labels_filename, dtype={'count': float})
+    df_labels = df_labels[df_labels["count"] >= 0.0]
+    df_labels_groupby = df_labels.groupby("lat_lon")
     
-    #def get_img_paths(coordinates):
-    #    img_paths = []
-    #    for subdir in coordinates:
-    #        for band in band_list:
-    #            img_paths.extend(glob.glob(os.path.join(data_dir, subdir, band + "*.png")))
-    #    return np.array(img_paths)
+    def get_img_paths(coordinates):
+        img_paths = []
+        for subdir in coordinates:
+            # if coords has count == -1 it will not appear in the group
+            if subdir not in df_labels_groupby.groups.keys():
+                continue
+            timestamps = df_labels_groupby.get_group(name = subdir)["timestamp"]
+            for timestamp in timestamps:
+                img_timestamp = []
+                for band in band_list:
+                    if band.startswith('bg'):
+                        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band +  "*.png")))
+                    else:
+                        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band + "*t_" + timestamp + "*.png")))
+                img_paths.append(img_timestamp)            
+        return np.array(img_paths)
     
     # select model by K Fold (high recall, low precision with min boat counts)
     if use_KFold is True:
