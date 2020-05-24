@@ -11,3 +11,7 @@ plotly
 superintendent
 sklearn
 tqdm
+shapely
+geopandas
+xarray
+pytest

@@ -6,11 +6,13 @@ import pandas as pd
 import numpy as np
 from skimage.io import imsave
 from skimage import img_as_ubyte
-import matplotlib.pyplot as plt
 import torch
+from xarray.core.dataset import Dataset
+from xarray.core.dataarray import DataArray
+from typing import Tuple
 
-
-def preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=True):
+def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any', verbose: int = 1,
+               plot_NDWI: bool = True) -> Tuple[Dataset, DataArray]:
     """ Preprocess cube for boat detect.
     
     Args:
@@ -39,7 +41,7 @@ def preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=T
     ndwi = (cube.B03-cube.B08)/(cube.B03+cube.B08) # NDWI, reference (McFeeters, 1996)
     ndwi.attrs['long_name']='-NDWI'
     ndwi.attrs['units']='unitless'
-    cube['NDWI']= -ndwi # add negative NDWI (high value for non water)
+    cube['NDWI'] = -ndwi # add negative NDWI (high value for non water)
     if plot_NDWI:
         (-cube).NDWI.plot.imshow(col='time', col_wrap=4, cmap='RdYlBu') ##### plot False Color instead!!!
     cube['NDWI'] = (cube.NDWI+1.0)/2.0 # from [-1,1] to [0,1]
@@ -119,7 +121,7 @@ def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', la
     print('Saved {} labels for {}'.format(len(label), subdir))
 
 
-def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips'):
+def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips', verbose = True):
     """ Save preprocessed imagery to disk.
     Args:
         cube: xCube object with time dimension and (B02,B03,B04,B08,NDWI) bands.
@@ -150,4 +152,7 @@ def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips'):
                img_as_ubyte(cube.sel(time=t).B08.values))
         imsave(os.path.join(data_dir, subdir, 'img_clp_t_{}.png'.format(snap_date)),
                img_as_ubyte(cube.sel(time=t).CLP.values))
-        print('Saved cubes with timestamp {} under {}'.format(snap_date, subdir))
+        imsave(os.path.join(data_dir, subdir, 'img_ndwi_t_{}.png'.format(snap_date)),
+               img_as_ubyte(cube.sel(time=t).NDWI.values))
+        if verbose:
+            print('Saved cubes with timestamp {} under {}'.format(snap_date, subdir))
