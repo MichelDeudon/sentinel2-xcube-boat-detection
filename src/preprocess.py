@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import warnings
+import pandas as pd
 import numpy as np
 from skimage.io import imsave
 from skimage import img_as_ubyte
@@ -77,7 +78,7 @@ def plot_cube_and_background(cube, background_ndwi, t=0, figsize=(25,5), cmap='g
     plt.show()
     
     
-def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', label_filename='data/labels.json'):
+def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', label_filename='data/labels.csv'):
     """ Save preprocessed imagery and labels to disk.
     Args:
         cube: xCube object with time dimension and (B02,B03,B04,B08,NDWI) bands.
@@ -98,24 +99,24 @@ def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', la
     os.makedirs(data_dir, exist_ok=True)
     subdir = 'lat_{}_lon_{}'.format(str(lat_lon[0]).replace('.','_'), str(lat_lon[1]).replace('.','_'))
     os.makedirs(os.path.join(data_dir,subdir), exist_ok=True)
-    with open(label_filename, 'r') as f:
-        label_file = json.load(f)
-        if subdir not in label_file:
-            label_file[subdir] = {}
-    
+
     # save background + imagery and labels
     imsave(os.path.join(data_dir,subdir,'bg_ndwi.png'), img_as_ubyte(background_ndwi.values))
+    df_labels = pd.read_csv(label_filename)
+    labeled_files = []
     for t, y in enumerate(label):
         snap_date = str(cube.isel(time=t).time.values)[:10]
-        label_file[subdir][snap_date] = y
-        imsave(os.path.join(data_dir,subdir,'img_03_t_{}_y_{}.png'.format(snap_date, y)), img_as_ubyte(cube.isel(time=t).B03.values))
-        imsave(os.path.join(data_dir,subdir,'img_08_t_{}_y_{}.png'.format(snap_date, y)), img_as_ubyte(cube.isel(time=t).B08.values))
-        imsave(os.path.join(data_dir,subdir,'img_clp_t_{}_y_{}.png'.format(snap_date, y)), img_as_ubyte(cube.isel(time=t).CLP.values))
-    
-    with open(label_filename, 'w') as f:
-        json.dump(label_file, f)
-        print('Saved {} labels for {}'.format(len(label), subdir))
-    return 1
+        imsave(os.path.join(data_dir,subdir,'img_03_t_{}.png'.format(snap_date)), img_as_ubyte(cube.isel(time=t).B03.values))
+        imsave(os.path.join(data_dir,subdir,'img_08_t_{}.png'.format(snap_date)), img_as_ubyte(cube.isel(time=t).B08.values))
+        imsave(os.path.join(data_dir,subdir,'img_clp_t_{}.png'.format(snap_date)), img_as_ubyte(cube.isel(time=t).CLP.values))
+        labeled_files.append((os.path.join(data_dir,subdir,'img_08_t_{}.png'.format(snap_date)), y))
+    df1 = pd.DataFrame(labeled_files).rename(columns={0: "file_path", 1: "count"})
+    #for filename in df1['file_path'].values:
+    #    if (filename in df_labels['file_path'].values):
+    #        df_labels = df_labels[df_labels['file_path']!=filename]
+    df_labels = df_labels.append(df1, ignore_index=True)
+    df_labels.to_csv(label_filename, index=False)
+    print('Saved {} labels for {}'.format(len(label), subdir))
 
 
 def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips'):
