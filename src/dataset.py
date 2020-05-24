@@ -59,13 +59,14 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
         for subdir in coords:
             for filename in os.listdir(os.path.join(data_dir,subdir)):
                 if filename.startswith(band_list[0]):
-                    filenames = [os.path.join(data_dir,subdir,filename)]
-                    for band in band_list[1:]:
-                        if band.startswith('bg'):
-                            filenames.append(os.path.join(data_dir,subdir,band+'.png'))
-                        elif band.startswith('img'):
-                            filenames.append(os.path.join(data_dir,subdir,filename.replace(band_list[0],band)))
-                    img_paths.append(filenames)
+                    if int(df_labels[df_labels['file_path']==os.path.join(data_dir,subdir,filename)]['count'].values)>=0:
+                        filenames = [os.path.join(data_dir,subdir,filename)]
+                        for band in band_list[1:]:
+                            if band.startswith('bg'):
+                                filenames.append(os.path.join(data_dir,subdir,band+'.png'))
+                            elif band.startswith('img'):
+                                filenames.append(os.path.join(data_dir,subdir,filename.replace(band_list[0],band)))
+                        img_paths.append(filenames)
         img_paths = np.array(img_paths)
         return img_paths
     
