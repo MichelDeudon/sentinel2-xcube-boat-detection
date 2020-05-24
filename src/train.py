@@ -114,6 +114,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
             true_count.append(y)
             
             if plot_heatmap and (success is None or (success and int(y_hat>0.5) == int(p)) or (not success and int(y_hat>0.5) != int(p)) ):
+                print(filename)
                 fig = plt.figure(figsize=(10,5))    
                 plt.subplot(1,3,1)
                 plt.imshow(imset['img'][0], cmap='gray')
@@ -136,7 +137,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
                 fig.tight_layout()
                 plt.show()
                 
-    plt.plot(np.arange(6), color='black', linestyle='dashed', alpha=0.5)
+    plt.plot(np.arange(10), color='black', linestyle='dashed', alpha=0.5)
     plt.scatter(true_count, predicted_count, color='blue', marker='+', alpha=0.4)
     plt.xlabel('true counts')
     plt.ylabel('predicted counts')
