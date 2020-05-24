@@ -6,7 +6,7 @@ import plotly.express as px
 from sklearn.model_selection import train_test_split, KFold
 import skimage
 from skimage.io import imread
-
+import glob
 import torch
 from torch.utils.data import Dataset
 
@@ -35,7 +35,9 @@ def plot_geoloc(train_coordinates, val_coordinates=None):
     return fig
 
 
-def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_size=0.1, plot_coords=True, plot_class_imbalance=True, use_KFold=False, seed=123):
+
+def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.csv', band_list=['img_ndwi'], test_size=0.1, plot_coords=True,
+                           plot_class_imbalance=True, use_KFold=False, seed=123):
     """ Return list of list of paths to filenames for training and validation (KFold)
     Args:
         data_dir: str, path to chips folder.
@@ -50,7 +52,8 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
     """
     
     coordinates = np.array(os.listdir(data_dir))
-    
+    df_labels = pd.read_csv(labels_filename)
+
     def get_img_paths(coords):
         img_paths = []
         for subdir in coords:
@@ -66,6 +69,13 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
         img_paths = np.array(img_paths)
         return img_paths
     
+    #def get_img_paths(coordinates):
+    #    img_paths = []
+    #    for subdir in coordinates:
+    #        for band in band_list:
+    #            img_paths.extend(glob.glob(os.path.join(data_dir, subdir, band + "*.png")))
+    #    return np.array(img_paths)
+    
     # select model by K Fold (high recall, low precision with min boat counts)
     if use_KFold is True:
         train_img_paths, val_img_paths = [], []
@@ -74,7 +84,7 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
         for train_index, val_index in kf.split(coordinates):
             train_coordinates = coordinates[train_index]
             val_coordinates = coordinates[val_index]
-            val_mean = np.mean([int(filename[0].split('y_')[-1][0]) for filename in get_img_paths(val_coordinates)]) # average number of boats in validation set
+            val_mean = np.mean([int(df_labels[df_labels['file_path']==filename[0]]['count'].values) for filename in get_img_paths(val_coordinates)]) # average number of boats in validation set
             if val_mean < lowest_val_mean: # min Fold select
                 lowest_val_mean = val_mean
                 train_img_paths = [get_img_paths(train_coordinates)]
@@ -98,11 +108,11 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
         plt.figure(1, figsize=(20,5))
         for i,(train_list, val_list) in enumerate(zip(train_img_paths, val_img_paths)):
             plt.subplot(len(train_img_paths),2,1+i)
-            plt.hist([int(filename[0].split('y_')[-1][0]) for filename in train_list], color='blue')
+            plt.hist([int(df_labels[df_labels['file_path']==filename[0]]['count'].values) for filename in train_list], color='blue')
             plt.xlabel('label')
             plt.ylabel('counts (train)')
             plt.subplot(len(train_img_paths),2,1+i+len(train_img_paths))
-            plt.hist([int(filename[0].split('y_')[-1][0]) for filename in val_list], color='red')
+            plt.hist([int(df_labels[df_labels['file_path']==filename[0]]['count'].values) for filename in val_list], color='red')
             plt.xlabel('label')
             plt.ylabel('counts (val)')
         plt.show()
@@ -113,11 +123,12 @@ def getImageSetDirectories(data_dir='data/chips', band_list=['img_ndwi'], test_s
 class S2_Dataset(Dataset):
     """ Derived Dataset class for loading imagery from an imset_dir."""
 
-    def __init__(self, imset_dir, augment=True):
+    def __init__(self, imset_dir, augment=True, labels_filename='data/labels.csv'):
         super().__init__()
         self.img_paths = imset_dir
         self.augment = augment
         self.n_loc = len(np.unique(['/'.join(filenames[0].split('/')[:-1]) for filenames in self.img_paths]))
+        self.df_labels = pd.read_csv(labels_filename)
                     
     def __len__(self):
         return len(self.img_paths)        
@@ -130,7 +141,7 @@ class S2_Dataset(Dataset):
             
         imset = {}
         imset['img'] = np.stack([imread(filename) for filename in self.img_paths[index]],0)
-        imset['y'] = float(self.img_paths[index][0].split('_y_')[-1].split('.')[0])
+        imset['y'] = float(self.df_labels[self.df_labels['file_path']==self.img_paths[index][0]]['count'].values)
         imset['filename'] = self.img_paths[index][0]
         imset['n'] = float(len([1 for file in os.listdir('/'.join(imset['filename'].split('/')[:-1])) if file.startswith('img_08')]))
         
@@ -167,3 +178,4 @@ def plot_dataset(dataset, n_frames=14, n_rows=2, cmap='gray'):
         plt.title('Label {}'.format(y))
     fig.tight_layout()
     plt.show()
+
