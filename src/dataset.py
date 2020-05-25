@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split, KFold
 import skimage
 from skimage.io import imread
 import glob
+from pathlib import Path
 import torch
 from torch.utils.data import Dataset
 
@@ -51,10 +52,13 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
         fig: mapbox plot of coordinates if plot_coords is True. Otherwise, returns None.
     """
     
-    coordinates = np.array([f for f in os.listdir(data_dir) if not f.startswith('.')])
+  
     df_labels = pd.read_csv(labels_filename, dtype={'count': float})
+    # should filter out the count == -1
     df_labels = df_labels[df_labels["count"] >= 0.0]
     df_labels_groupby = df_labels.groupby("lat_lon")
+    coordinates = np.array(list(df_labels_groupby.groups.keys()))
+        
     
     def get_img_paths(coordinates):
         img_paths = []
@@ -65,7 +69,7 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
             timestamps = df_labels_groupby.get_group(name = subdir)["timestamp"]
             for timestamp in timestamps:
                 img_timestamp = []
-                for band in band_list:
+                for band in band_list: #img_08, bg_ndwi
                     if band.startswith('bg'):
                         img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band +  "*.png")))
                     else:
@@ -79,9 +83,12 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
         lowest_val_mean = 9.
         kf = KFold(n_splits=int(1./test_size), random_state=seed, shuffle=True)
         for train_index, val_index in kf.split(coordinates):
+         
             train_coordinates = coordinates[train_index]
             val_coordinates = coordinates[val_index]
-            val_mean = np.mean([int(df_labels[df_labels['file_path']==filename[0]]['count'].values) for filename in get_img_paths(val_coordinates)]) # average number of boats in validation set
+            #  average number of boats in validation set all locations and all timestamps of val_coords
+            val_coord_set = [Path(coord).name for coord in val_coordinates]
+            val_mean = df_labels[df_labels["lat_lon"].isin(val_coord_set)]['count'].mean()
             if val_mean < lowest_val_mean: # min Fold select
                 lowest_val_mean = val_mean
                 train_img_paths = [get_img_paths(train_coordinates)]
@@ -101,16 +108,18 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
         fig = plot_geoloc(list(train_coords), list(val_coords))
     else:
         fig = None
-    
     if plot_class_imbalance is True:
         plt.figure(1, figsize=(20,5))
         for i,(train_list, val_list) in enumerate(zip(train_img_paths, val_img_paths)):
             plt.subplot(len(train_img_paths),2,1+i)
-            plt.hist([int(df_labels[df_labels['file_path']==filename[0]]['count'].values) for filename in train_list], color='blue')
+            train_list_counts = [Path(filename[0]).parts[-2] for filename in train_list]
+            df_labels[df_labels['lat_lon'].isin(train_list_counts)]['count'].hist(color='blue')
             plt.xlabel('label')
             plt.ylabel('counts (train)')
             plt.subplot(len(train_img_paths),2,1+i+len(train_img_paths))
-            plt.hist([int(df_labels[df_labels['file_path']==filename[0]]['count'].values) for filename in val_list], color='red')
+           
+            val_list_counts = [Path(filename[0]).parts[-2] for filename in val_list]
+            df_labels[df_labels['lat_lon'].isin(val_list_counts)]['count'].hist(color='red')
             plt.xlabel('label')
             plt.ylabel('counts (val)')
         plt.show()
