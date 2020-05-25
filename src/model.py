@@ -96,7 +96,7 @@ class Model(nn.Module):
         self.to(self.device)
         
         
-    def forward(self, x, water_ndwi=-1.0):
+    def forward(self, x, water_ndwi=-1.0, flip=True):
         '''
         Predict boat presence (or counts) in an image x
         Args:
@@ -111,9 +111,10 @@ class Model(nn.Module):
         
         x = x.to(self.device)
         batch_size, channels, height, width = x.shape 
-        pixel_embedding = self.embed(x) 
+        pixel_embedding = self.embed(x)
         pixel_embedding = pixel_embedding + self.residual(pixel_embedding) # h1 (B, C_h, H, W)
-        patch_embedding = self.max_pool(self.dropout(pixel_embedding))
+        pixel_embedding = self.dropout(pixel_embedding)
+        patch_embedding = self.max_pool(pixel_embedding)
         z = self.encode_patch(patch_embedding) # z (B, n_max+1, H//pool_size, W//pool_size) multinomial distribution Z_i=k if k boats, 0 <= k < n_max+1
         p_hat = torch.sum(z[:,1:], dim=1, keepdim=True) # probability there is a boat or more (for each chunk)
         p_hat = torch.max(torch.max(p_hat,dim=-1).values ,dim=-1).values # (B, 1) tight lower bound on probability there is a boat in full image
@@ -142,7 +143,7 @@ class Model(nn.Module):
         
         x = x.to(self.device)
         x_hidden, density_map, p_hat, y_hat = self.forward(x, water_ndwi=water_ndwi)  # (B,1,n_filters,H,W)
-                        
+        
         # compute loss
         p = 1.0*(y>0)
         criterion = torch.nn.BCELoss(reduction='mean') ##### change to BCEWithLogitsLoss (numerical instability)
@@ -174,7 +175,7 @@ class Model(nn.Module):
             self.load_state_dict(torch.load(checkpoint_file))
             
             
-    def chip_and_count(self, x, water_ndwi=0.4, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False):
+    def chip_and_count(self, x, water_ndwi=0.5, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False, outliers=100):
         """ Chip an image, predict presence for each chip and return heatmap of presence and total counts.
         Args:
             x: tensor (N, C_in, H, W)
@@ -183,30 +184,36 @@ class Model(nn.Module):
             timestamps:
             max_frames:
             plot_trend:
+            outliers: int
         Returns:
             heatmaps: list of np.array of size (H/chunk_size, W/chunk_size)
             counts: list of int
         """
+
+        # memory overload, chunk data by time
+        heatmaps = []
+        counts = []
+        new_timestamps = []
+        new_x = []
         
-        if x.size(0)<10:
-            _, density_map, p_hat, y_hat = self.forward(x.float(), water_ndwi=water_ndwi)
+        if timestamps is None:
+            timestamps = np.arange(len(x))
+            
+        for t in range(x.size(0)):
+            _, density_map, p_hat, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi)
             density_map = density_map.detach().cpu().numpy() # (B, 1, H, W)
             y_hat = y_hat.detach().cpu().numpy() # (B, 1)
-            heatmaps = [density_map[t][0] for t in range(x.size(0))]
-            counts = [float(y_hat[t]) for t in range(x.size(0))]
-        else:
-            # memory overload, chunk data by time
-            heatmaps = []
-            counts = []
-            for t in range(x.size(0)):
-                _, density_map, p_hat, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi)
-                density_map = density_map.detach().cpu().numpy() # (B, 1, H, W)
-                y_hat = y_hat.detach().cpu().numpy() # (B, 1)
+            if float(y_hat[0]) <= outliers:
+                new_x.append(x[t:t+1])
+                new_timestamps.append(timestamps[t])
                 heatmaps.append(density_map[0][0])
                 counts.append(float(y_hat[0]))
         
+        if len(new_x)>0:
+            x = torch.cat(new_x, 0)
+            
         if plot_heatmap is True and timestamps is not None:
-            plot_heatmaps(timestamps, x, heatmaps, counts, max_frames=max_frames)
+            plot_heatmaps(new_timestamps, x, heatmaps, counts, max_frames=max_frames)
         if plot_indicator is True:
-            plot_trend(counts, timestamps)
+            plot_trend(counts, new_timestamps)
         return heatmaps, counts
