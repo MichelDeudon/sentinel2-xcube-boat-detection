@@ -99,6 +99,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
     predicted_count = []
     true_count = []
     relabel_images = []
+    image_titles = []
     
     for imset in dataset:
         channels, height, width = imset['img'].shape
@@ -124,17 +125,22 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
                 plt.title('y_true = {}'.format(int(y)))
                 plt.xticks([])
                 plt.yticks([])
+                image_titles.append((imset['img'][0], 'y_true = {}'.format(int(y))))
                 plt.subplot(1,3,2)
                 if isinstance(hidden_channel, int):
                     plt.imshow(x[hidden_channel], cmap='gray')
+                    image_titles.append((x[hidden_channel], 'p_hat = {:.4f}'.format(p_hat)))
                 elif isinstance(hidden_channel, list):
                     plt.imshow(np.stack([x[c] for c in hidden_channel],-1))
+                    image_titles.append((np.stack([x[c] for c in hidden_channel],-1), 'p_hat = {:.4f}'.format(p_hat)))
+
                 plt.title('p_hat = {:.4f}'.format(p_hat))
                 plt.xticks([])
                 plt.yticks([])
                 plt.subplot(1,3,3)
                 plt.imshow(heatmap, cmap='gray')
                 plt.title('y_hat = {:.4f}'.format(y_hat))
+                image_titles.append((heatmap, 'p_hat = {:.4f}'.format(p_hat)))
                 plt.xticks([])
                 plt.yticks([])
                 fig.tight_layout()
@@ -146,4 +152,4 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
     plt.ylabel('predicted counts')
     plt.title('Predicted vs. True counts')
     plt.show()
-    return relabel_images
+    return image_titles, relabel_images

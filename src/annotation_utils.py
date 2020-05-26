@@ -1,6 +1,7 @@
 import pathlib
 import math
 import io
+from typing import Dict, List, Tuple
 from pathlib import Path
 from skimage.io import imread
 import matplotlib.pyplot as plt
@@ -27,6 +28,15 @@ def change_colormap(image_path: pathlib.Path, cmap='RdYlBu', reverse=True):
     imgByteArr = imgByteArr.getvalue()
     return imgByteArr
 
+
+def get_image_colormap(image: np.ndarray, cmap='gray'):
+    cm = plt.get_cmap(cmap)
+    colored_image = cm(image)
+    colored_feature = Image.fromarray(np.uint8(colored_image * 255))
+    imgByteArr = io.BytesIO()
+    colored_feature.save(imgByteArr, format='PNG')
+    imgByteArr = imgByteArr.getvalue()
+    return imgByteArr
 
 
 
@@ -68,13 +78,24 @@ def display_image_and_references(image_path: Path):
     ])
     display(image_display)
 
-def display_image_08(image_path: Path):
-    image_display = widgets.VBox([
-        widgets.VBox([
-            widgets.Label("image to label: {0}".format(image_path.name)),
-            widgets.Image(value=change_colormap(image_path, cmap='gray', reverse=False),
+def display_image_08(image_titles: List[Tuple[np.ndarray, str]]):
+    # 1
+    # plt.imshow(imset['img'][0], cmap='gray')
+    # plt.title('y_true = {}'.format(int(y)))
+    # 2
+    # if isinstance(hidden_channel, int):
+    #     plt.imshow(x[hidden_channel], cmap='gray')
+    # elif isinstance(hidden_channel, list):
+    #     plt.imshow(np.stack([x[c] for c in hidden_channel], -1))
+    # plt.title('p_hat = {:.4f}'.format(p_hat))
+    #3
+    # plt.imshow(heatmap, cmap='gray')
+    # plt.title('y_hat = {:.4f}'.format(y_hat))
+    image_display = widgets.HBox(
+        [widgets.VBox([
+            widgets.Label(title),
+            widgets.Image(value=get_image_colormap(image, cmap='gray'),
                           layout=widgets.Layout(width='300px', height='300px')),
-        ]),
-
-    ])
+        ]) for image, title in image_titles]
+    )
     display(image_display)
