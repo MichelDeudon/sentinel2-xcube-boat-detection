@@ -10,8 +10,8 @@ from skimage import img_as_ubyte
 import torch
 from xarray.core.dataset import Dataset
 from xarray.core.dataarray import DataArray
-
 from typing import Tuple, List
+
 from src.GIS_utils import bbox_from_point
 from src.config import CubeConfig
 
@@ -133,12 +133,7 @@ def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips', verbose = 
         lat_lon: tuple of floats, latitude and longitude in degrees.
         data_dir: str, path to chips folder.
     """
-    import os
-    import sys
-    import warnings
-    from skimage.io import imsave
-    from skimage import img_as_ubyte
-
+    
     if not sys.warnoptions:
         warnings.simplefilter("ignore")
 
