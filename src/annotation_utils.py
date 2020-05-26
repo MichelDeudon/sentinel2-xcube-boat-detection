@@ -44,17 +44,17 @@ def display_image_and_references(image_path):
             if img_index >= len(other_images): break
             image = other_images[img_index]
             grid[i, j] = widgets.VBox([
-                widgets.Label(f"Image {image.name}"),
+                widgets.Label("Image {0}".format(image.name)),
                 widgets.Image(value=change_colormap(image),
                               layout=widgets.Layout(width='200px', height='200px')),
             ])
 
     image_display = widgets.VBox([
         widgets.VBox([
-            widgets.Label(f"folder: {image_folder}"),
-            widgets.Label(f"all other images of the same loc"),
+            widgets.Label("folder: {0}".format(image_folder)),
+            widgets.Label("all other images of the same loc"),
             grid,
-            widgets.Label(f"image to label: {image_path.name}"),
+            widgets.Label("image to label: {0}".format(image_path.name)),
             widgets.Image(value=change_colormap(image_path), object_fit='none',
                           layout=widgets.Layout(width='300px', height='300px'))
         ]),
