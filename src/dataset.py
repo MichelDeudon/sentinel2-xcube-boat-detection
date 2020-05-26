@@ -1,9 +1,11 @@
 import os
 import numpy as np
 import pandas as pd
+import warnings
+import sys
 import matplotlib.pyplot as plt
 import plotly.express as px
-from sklearn.model_selection import train_test_split, KFold
+from sklearn.model_selection import train_test_split
 import skimage
 from skimage.io import imread
 import glob
@@ -38,7 +40,7 @@ def plot_geoloc(train_coordinates, val_coordinates=None):
 
 
 def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.csv', band_list=['img_ndwi'], test_size=0.1, plot_coords=True,
-                           plot_class_imbalance=True, use_KFold=False, seed=123):
+                           plot_class_imbalance=True, seed=123):
     """ Return list of list of paths to filenames for training and validation (KFold)
     Args:
         data_dir: str, path to chips folder.
@@ -46,7 +48,6 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
         test_size: float, proportion of locations for validation
         plot_coords: bool, plot coordinates with mapbox
         plot_class_imbalance: bool, plot target histograms (train, val labels)
-        use_KFold: bool
     Returns:
         train_img_paths, val_img_paths: list of (list of list of str)
         fig: mapbox plot of coordinates if plot_coords is True. Otherwise, returns None.
@@ -54,19 +55,16 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
     
   
     df_labels = pd.read_csv(labels_filename, dtype={'count': float})
-    # should filter out the count == -1
-    df_labels = df_labels[df_labels["count"] >= 0.0]
+    df_labels = df_labels[df_labels["count"] >= 0.0] # keep positive counts
     df_labels_groupby = df_labels.groupby("lat_lon")
     coordinates = np.array(list(df_labels_groupby.groups.keys()))
-        
+    train_coordinates, val_coordinates = train_test_split(coordinates, test_size=test_size, random_state=seed, shuffle=True) # split train/val coordinates
+    print("Found {0} coordinates:{1} train / {2} val".format(len(coordinates), len(train_coordinates), len(val_coordinates)))
     
     def get_img_paths(coordinates):
         img_paths = []
         for subdir in coordinates:
-            # if coords has count == -1 it will not appear in the group
-            if subdir not in df_labels_groupby.groups.keys():
-                continue
-            timestamps = df_labels_groupby.get_group(name = subdir)["timestamp"]
+            timestamps = df_labels_groupby.get_group(name = subdir)["timestamp"] # if count is negative, will not appear in the group
             for timestamp in timestamps:
                 img_timestamp = []
                 for band in band_list: #img_08, bg_ndwi
@@ -77,51 +75,29 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
                 img_paths.append(img_timestamp)            
         return np.array(img_paths)
     
-    # select model by K Fold (high recall, low precision with min boat counts)
-    if use_KFold is True:
-        train_img_paths, val_img_paths = [], []
-        lowest_val_mean = 9.
-        kf = KFold(n_splits=int(1./test_size), random_state=seed, shuffle=True)
-        for train_index, val_index in kf.split(coordinates):
-         
-            train_coordinates = coordinates[train_index]
-            val_coordinates = coordinates[val_index]
-            #  average number of boats in validation set all locations and all timestamps of val_coords
-            val_coord_set = [Path(coord).name for coord in val_coordinates]
-            val_mean = df_labels[df_labels["lat_lon"].isin(val_coord_set)]['count'].mean()
-            if val_mean < lowest_val_mean: # min Fold select
-                lowest_val_mean = val_mean
-                train_img_paths = [get_img_paths(train_coordinates)]
-                val_img_paths = [get_img_paths(val_coordinates)]
+    train_img_paths = get_img_paths(train_coordinates) # get list of filenames
+    val_img_paths = get_img_paths(val_coordinates)
     
-    # select model by random cross validation
-    else:
-        train_coordinates, val_coordinates = train_test_split(coordinates, test_size=test_size, random_state=seed, shuffle=True)
-        train_img_paths = [get_img_paths(train_coordinates)]
-        val_img_paths = [get_img_paths(val_coordinates)]
-        
+    fig = None
     if plot_coords is True:
         train_coords = [coord.replace('lat_','').split('_lon_') for coord in train_coordinates]
         train_coords = [ (float(coord[0].replace('_','.')), float(coord[1].replace('_','.'))) for coord in train_coords]
         val_coords = [coord.replace('lat_','').split('_lon_') for coord in val_coordinates]
         val_coords = [ (float(coord[0].replace('_','.')), float(coord[1].replace('_','.'))) for coord in val_coords]
         fig = plot_geoloc(list(train_coords), list(val_coords))
-    else:
-        fig = None
+    
     if plot_class_imbalance is True:
+        if not sys.warnoptions:
+            warnings.simplefilter("ignore")
         plt.figure(1, figsize=(20,5))
-        for i,(train_list, val_list) in enumerate(zip(train_img_paths, val_img_paths)):
-            plt.subplot(len(train_img_paths),2,1+i)
-            train_list_counts = [Path(filename[0]).parts[-2] for filename in train_list]
-            df_labels[df_labels['lat_lon'].isin(train_list_counts)]['count'].hist(color='blue')
-            plt.xlabel('label')
-            plt.ylabel('counts (train)')
-            plt.subplot(len(train_img_paths),2,1+i+len(train_img_paths))
-           
-            val_list_counts = [Path(filename[0]).parts[-2] for filename in val_list]
-            df_labels[df_labels['lat_lon'].isin(val_list_counts)]['count'].hist(color='red')
-            plt.xlabel('label')
-            plt.ylabel('counts (val)')
+        plt.subplot(121)
+        df_labels[df_labels['lat_lon'].isin(train_coordinates)]['count'].hist(color='blue')
+        plt.xlabel('label')
+        plt.ylabel('counts (train)')
+        plt.subplot(122)
+        df_labels[df_labels['lat_lon'].isin(val_coordinates)]['count'].hist(color='red')
+        plt.xlabel('label')
+        plt.ylabel('counts (val)')
         plt.show()
         
     return train_img_paths, val_img_paths, fig
@@ -148,8 +124,15 @@ class S2_Dataset(Dataset):
             
         imset = {}
         imset['img'] = np.stack([imread(filename) for filename in self.img_paths[index]],0)
-        imset['y'] = float(self.df_labels[self.df_labels['file_path']==self.img_paths[index][0]]['count'].values)
-        imset['filename'] = self.img_paths[index][0]
+        
+        filename = self.img_paths[index][0] # ex: /home/jovyan/data/chips/lat_43_09_lon_5_93/img_08_t_2020-02-17.png
+        lat_lon = filename.split('/')[-2]
+        timestamp = filename.split('/')[-1].replace('.png','')[-10:]
+        index = (self.df_labels['lat_lon']==lat_lon) * (self.df_labels['timestamp']==timestamp)        
+        #imset['y'] = float(self.df_labels[self.df_labels['file_path']==self.img_paths[index][0]]['count'].values)
+        imset['y'] = float(self.df_labels[index]['count'].values)
+        
+        imset['filename'] = filename
         imset['n'] = float(len([1 for file in os.listdir('/'.join(imset['filename'].split('/')[:-1])) if file.startswith('img_08')]))
         
         if self.augment is True:
