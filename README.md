@@ -5,15 +5,10 @@ Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Senti
 ## ⛵ Setup
 
 ##### With EDC
-- Clone this repository in a Jupyter Lab environment on Euro Data Cube Dashboard (requires a valid account)
+- Clone this repository in a Jupyter Lab environment (Python 3.6+) on Euro Data Cube Dashboard (requires a valid account)
 - Edit Sentinel Hub credentials and [Mapbox](https://studio.mapbox.com/) token in a .env file (requires a valid account).
-
-##### With Conda
-- Run ```conda create -n sentinel2-xcube-boat-detection python=3.6``` and ```activate sentinel2-xcube-boat-detection```
 - Clone this repository and run ```pip install -r requirements.txt```
-
-##### With Docker
-- TODO: Edit requirements.txt and Docker image.
+- TODO: Edit Docker image.
 
 ![S2-Artwork](pics/EU-Ports/Venezia/Artwork_by_Elena_Aversa.jpg)
 
@@ -21,14 +16,16 @@ Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Senti
 
 ### 1. 📷 Annotate 1 squared km chips with boat counts.
 
-Download [Sentinel 2](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) L1C products (bands B03, B08, [CLP](https://github.com/sentinel-hub/sentinel2-cloud-detector)) from [Sentinel Hub](https://www.sentinel-hub.com/) via [xcube-sh](https://github.com/dcs4cop/xcube-sh). Remove nans and cloudy images with CLP. Compute NDWI. Background NDWI estimation by multi frame fusion (max over time). BG NDWI can be used to obtain a water/land mask M after thresholding.
+Download [Sentinel 2](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) L1C products (bands B03, B08, [CLP](https://github.com/sentinel-hub/sentinel2-cloud-detector)) from [Sentinel Hub](https://www.sentinel-hub.com/) via [xcube-sh](https://github.com/dcs4cop/xcube-sh). Remove nans and cloudy images with CLP. Compute NDWI. Background NDWI estimation by multi frame fusion (max over time). BG NDWI can be used to obtain a water/land mask M after thresholding. 
+
+Annotate chips with [superintendent](https://github.com/janfreyberg/superintendent) and [scikit-image](https://scikit-image.org/)
 
 ![Inputs](pics/S2-Boat-Density/inputs.png)
 
 ### 2. 🔭 Learn to detect and count boat traffic
 
 - Input (2 channels): NIR Band (foreground+background) and Background NDWI (background)
-- Archi: Residual Network (pixel embedding) + MaxPool2D (patch encoding) + 2-layer 1x1 conv2D (patch latent code Z) + Clf/Reg prediction.
+- Pytorch model: Residual Network (pixel embedding) + MaxPool2D (patch encoding) + 2-layer 1x1 conv2D (patch latent code Z) + Clf/Reg prediction.
 
 ![Model](pics/S2-Boat-Density/Classifier.png)
 
