@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm as tqdm
@@ -97,6 +98,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
     
     predicted_count = []
     true_count = []
+    relabel_images = []
     
     for imset in dataset:
         channels, height, width = imset['img'].shape
@@ -115,6 +117,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
             
             if plot_heatmap and (success is None or (success and int(y_hat>0.5) == int(p)) or (not success and int(y_hat>0.5) != int(p)) ):
                 print(filename)
+                relabel_images.append(Path(filename))
                 fig = plt.figure(figsize=(10,5))    
                 plt.subplot(1,3,1)
                 plt.imshow(imset['img'][0], cmap='gray')
@@ -143,3 +146,4 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
     plt.ylabel('predicted counts')
     plt.title('Predicted vs. True counts')
     plt.show()
+    return relabel_images

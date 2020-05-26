@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from pathlib import Path
 import warnings
 import pandas as pd
 import numpy as np
@@ -9,7 +10,10 @@ from skimage import img_as_ubyte
 import torch
 from xarray.core.dataset import Dataset
 from xarray.core.dataarray import DataArray
-from typing import Tuple
+from typing import Tuple, List
+
+from src.GIS_utils import bbox_from_point
+from src.config import CubeConfig
 
 def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any', verbose: int = 1,
                plot_NDWI: bool = True) -> Tuple[Dataset, DataArray]:
@@ -129,12 +133,7 @@ def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips', verbose = 
         lat_lon: tuple of floats, latitude and longitude in degrees.
         data_dir: str, path to chips folder.
     """
-    import os
-    import sys
-    import warnings
-    from skimage.io import imsave
-    from skimage import img_as_ubyte
-
+    
     if not sys.warnoptions:
         warnings.simplefilter("ignore")
 
@@ -156,3 +155,38 @@ def save_cubes(cube, background_ndwi, lat_lon, data_dir='data/chips', verbose = 
                img_as_ubyte(cube.sel(time=t).NDWI.values))
         if verbose:
             print('Saved cubes with timestamp {} under {}'.format(snap_date, subdir))
+
+
+def request_save_cubes(start_date: str, end_date: str, lat: float, lon: float, data_chips_dir: str,
+                       RADIUS: int = 500, dataset_name: str = 'S2L1C', band_names: List = ['B03', 'B08', 'CLP'],
+                       max_cloud_proba: float = 0.1, time_period: str = '1D'):
+    """
+
+    :param start_date: '2019-01-01'
+    :param end_date: '2019-06-30'
+    :param lat: latitude
+    :param lon: longitude
+    :param data_chips_dir: download image will be saved to this dir like 'data/chips'
+    :param RADIUS: radius in meter
+    :param dataset_name: either S2L1C or S2L2A
+    :param band_names: a list of bands to be saved
+    :param max_cloud_proba: maximum probability of cloud
+    :param time_period: 1D
+    :return:
+    """
+    from xcube_sh.cube import open_cube
+    from xcube_sh.observers import Observers
+    bbox = bbox_from_point(lat=lat, lon=lon, r=RADIUS)
+    cube_config = CubeConfig(dataset_name=dataset_name,
+                             band_names=band_names,  # GREEN + NIR + Clouds
+                             tile_size=[2 * RADIUS // 10, 2 * RADIUS // 10],
+                             geometry=bbox,
+                             time_range=[start_date, end_date],
+                             time_period=time_period,
+                             )
+    request_collector = Observers.request_collector()
+    cube = open_cube(cube_config, observer=request_collector)
+
+    cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba,
+                                       nans_how='any', verbose=1, plot_NDWI=False)
+    save_cubes(cube, background_ndwi, lat_lon=(lat, lon), data_dir=Path(data_chips_dir), verbose=False)
