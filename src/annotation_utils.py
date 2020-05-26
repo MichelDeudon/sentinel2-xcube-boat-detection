@@ -1,7 +1,7 @@
 import pathlib
 import math
 import io
-
+from pathlib import Path
 from skimage.io import imread
 import matplotlib.pyplot as plt
 
@@ -13,10 +13,14 @@ from PIL import Image
 
 
 
-def change_colormap(image_path: pathlib.Path, cmap='RdYlBu'):
+
+def change_colormap(image_path: pathlib.Path, cmap='RdYlBu', reverse=True):
     feature = imread(image_path)
     cm = plt.get_cmap(cmap)
-    colored_image = cm(-feature)
+    if reverse:
+        colored_image = cm(-feature)
+    else:
+        colored_image = cm(feature)
     colored_feature = Image.fromarray(np.uint8(colored_image * 255))
     imgByteArr = io.BytesIO()
     colored_feature.save(imgByteArr, format='PNG')
@@ -24,7 +28,9 @@ def change_colormap(image_path: pathlib.Path, cmap='RdYlBu'):
     return imgByteArr
 
 
-def display_image_and_references(image_path):
+
+
+def display_image_and_references(image_path: Path):
     image_folder = image_path.parent
     print(image_folder)
 
@@ -57,6 +63,17 @@ def display_image_and_references(image_path):
             widgets.Label("image to label: {0}".format(image_path.name)),
             widgets.Image(value=change_colormap(image_path), object_fit='none',
                           layout=widgets.Layout(width='300px', height='300px'))
+        ]),
+
+    ])
+    display(image_display)
+
+def display_image_08(image_path: Path):
+    image_display = widgets.VBox([
+        widgets.VBox([
+            widgets.Label("image to label: {0}".format(image_path.name)),
+            widgets.Image(value=change_colormap(image_path, cmap='gray', reverse=False),
+                          layout=widgets.Layout(width='300px', height='300px')),
         ]),
 
     ])
