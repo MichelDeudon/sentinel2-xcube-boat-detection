@@ -2,7 +2,7 @@
 
 import os
 import sys
-sys.path.insert(0,os.path.dirname('src/'))
+# sys.path.insert(0,os.path.dirname('src/'))
 
 
 def test_imports():
@@ -25,7 +25,7 @@ def test_imports():
 def test_GIS_utils():
     ''' Test GIS util to get squared bounding box from center (degrees) and radius (meters).'''
     import numpy as np
-    from GIS_utils import bbox_from_point
+    from src.GIS_utils import bbox_from_point
     x1, y1, x2, y2 = bbox_from_point(lat=40.0482, lon=26.3013, r=1000)
     assert isinstance(x1, float) and isinstance(x2, float) and isinstance(y1, float) and isinstance(y2, float)
     assert np.abs(x1-x2) < 1.0 and np.abs(y1-y2) < 1.0 # difference smaller than 1 degree
@@ -34,7 +34,7 @@ def test_GIS_utils():
 def test_model():
     ''' Test pytorch model to detect and count objects in sentinel-2 imagery'''
     import torch
-    from model import Model
+    from src.model import Model
 
     batch_size, input_dim, H, W = 8, 2, 100, 100
     x = torch.zeros((batch_size, input_dim, H, W))
@@ -59,19 +59,19 @@ def test_model():
 
 def test_checkpoint():
     ''' Load checkpoint for pretrained model'''
-    from model import Model
+    from src.model import Model
     model = Model(input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, pad=True, device='cpu', version='0.0.1')
     #model.load_checkpoint(checkpoint_file)
 
 
 def test_CubeConfig():
     ''' Test xcube_sh config'''
-    from config import CubeConfig
+    from src.config import CubeConfig
 
 
 def test_preprocess():
     ''' Test utils to preprocess sentinel2-cube'''
-    from preprocess import preprocess, plot_cube_and_background, save_labels
+    from src.preprocess import preprocess
     import numpy as np
     from xarray.core.dataset import Dataset
     import pandas as pd

@@ -11,9 +11,6 @@ import torch
 from xarray.core.dataset import Dataset
 from xarray.core.dataarray import DataArray
 
-from xcube_sh.cube import open_cube
-from xcube_sh.observers import Observers
-
 from typing import Tuple, List
 from src.GIS_utils import bbox_from_point
 from src.config import CubeConfig
@@ -182,6 +179,8 @@ def request_save_cubes(start_date: str, end_date: str, lat: float, lon: float, d
     :param time_period: 1D
     :return:
     """
+    from xcube_sh.cube import open_cube
+    from xcube_sh.observers import Observers
     bbox = bbox_from_point(lat=lat, lon=lon, r=RADIUS)
     cube_config = CubeConfig(dataset_name=dataset_name,
                              band_names=band_names,  # GREEN + NIR + Clouds
