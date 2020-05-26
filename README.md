@@ -7,7 +7,7 @@ Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Senti
 ##### With EDC
 - Clone this repository in a Jupyter Lab environment (Python 3.6+) on Euro Data Cube Dashboard (requires a valid account)
 - Edit Sentinel Hub credentials and [Mapbox](https://studio.mapbox.com/) token in a .env file (requires a valid account).
-- Clone this repository and run ```pip install -r requirements.txt```
+- Run ```pip install -r requirements.txt```
 - TODO: Edit Docker image.
 
 ![S2-Artwork](pics/EU-Ports/Venezia/Artwork_by_Elena_Aversa.jpg)
