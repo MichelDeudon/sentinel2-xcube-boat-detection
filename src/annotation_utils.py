@@ -29,28 +29,29 @@ def transform_img_path(image_path: pathlib.Path, cmap='RdYlBu', reverse=True):
         colored_image = cm(-feature)
     else:
         colored_image = cm(feature)
-    colored_feature = Image.fromarray(np.uint8(colored_image * 255))
+    colored_feature = Image.fromarray(np.uint8(colored_image))
     imgByteArr = io.BytesIO()
     colored_feature.save(imgByteArr, format='PNG')
     imgByteArr = imgByteArr.getvalue()
     return imgByteArr
 
 
-def transform_img_nparray(image: np.ndarray, cmap='gray'):
+# def transform_img_nparray(image: np.ndarray, cmap='gray'):
 
-    """
-    read image from file, map it to the given cmap and return the byte array of it
-    :param image: path of the image
-    :param cmap: color map, followed matplotlib format
-    :return: transformed image as byte array
-    """
-    cm = plt.get_cmap(cmap)
-    colored_image = cm(image)
-    colored_feature = Image.fromarray(np.uint8(colored_image * 255))
-    imgByteArr = io.BytesIO()
-    colored_feature.save(imgByteArr, format='PNG')
-    imgByteArr = imgByteArr.getvalue()
-    return imgByteArr
+#     """
+#     read image from file, map it to the given cmap and return the byte array of it
+#     :param image: path of the image
+#     :param cmap: color map, followed matplotlib format
+#     :return: transformed image as byte array
+#     """
+#     cm = plt.get_cmap(cmap)
+#     colored_image = cm(image)
+#     scaled_image = (colored_image - np.min(colored_image)) / (np.max(colored_image) - np.min(colored_image))
+#     colored_feature = Image.fromarray(np.uint8(scaled_image * 255))
+#     imgByteArr = io.BytesIO()
+#     colored_feature.save(imgByteArr, format='PNG')
+#     imgByteArr = imgByteArr.getvalue()
+#     return imgByteArr
 
 
 
@@ -98,15 +99,30 @@ def display_image_and_references(image_path: Path):
 
 def display_heatmap_prediction(image_titles: List[Tuple[np.ndarray, str]]):
     """
-        display y_true, heatmap, y_hat of a model
+    display y_true, heatmap, y_hat of a model
     :param image_titles: a list of tuple (image, title). Image as ndarray and title of the image
     :return: ipython display handle
     """
-    image_display = widgets.HBox(
-        [widgets.VBox([
-            widgets.Label(title),
-            widgets.Image(value=transform_img_nparray(image, cmap='gray'),
-                          layout=widgets.Layout(width='300px', height='300px')),
-        ]) for image, title in image_titles]
-    )
-    display(image_display)
+#     fig, axs = plt.subplots(1,3, figsize=(10,5))
+    fig = plt.figure(figsize=(10,5))   
+
+    plt.subplot(1,3,1)
+    plt.imshow(image_titles[0][0], cmap='gray')
+    plt.title(image_titles[0][1])
+    plt.xticks([])
+    plt.yticks([])
+                
+    plt.subplot(1,3,2)
+               
+    plt.imshow(image_titles[1][0], cmap='gray')
+    plt.title(image_titles[1][1])
+    plt.xticks([])
+    plt.yticks([])
+                
+    plt.subplot(1,3,3)
+    plt.imshow(image_titles[2][0], cmap='gray')
+    plt.title(image_titles[2][1])
+    plt.xticks([])
+    plt.yticks([])
+    fig.tight_layout()
+    display(fig)

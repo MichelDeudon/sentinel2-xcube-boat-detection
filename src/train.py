@@ -99,13 +99,14 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
     predicted_count = []
     true_count = []
     relabel_images = []
-    image_titles = []
+    total_image_titles = []
     
     for imset in dataset:
         channels, height, width = imset['img'].shape
         y = imset['y'].cpu().numpy()
         p = 1.0*(y>0)
         filename = imset['filename']
+        image_titles = []
         if filter_on is None or (int(y)>=filter_on and filter_on!=0) or (int(y)==0 and filter_on==0):
             x, density_map, p_hat, y_hat = model(imset['img'].float().reshape(1, channels, height, width))
             x = x.detach().cpu().numpy()[0]
@@ -140,16 +141,16 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
                 plt.subplot(1,3,3)
                 plt.imshow(heatmap, cmap='gray')
                 plt.title('y_hat = {:.4f}'.format(y_hat))
-                image_titles.append((heatmap, 'p_hat = {:.4f}'.format(p_hat)))
+                image_titles.append((heatmap, 'y_hat = {:.4f}'.format(y_hat)))
                 plt.xticks([])
                 plt.yticks([])
                 fig.tight_layout()
                 plt.show()
-                
+        total_image_titles.append(image_titles)                
     plt.plot(np.arange(10), color='black', linestyle='dashed', alpha=0.5)
     plt.scatter(true_count, predicted_count, color='blue', marker='+', alpha=0.4)
     plt.xlabel('true counts')
     plt.ylabel('predicted counts')
     plt.title('Predicted vs. True counts')
     plt.show()
-    return image_titles, relabel_images
+    return total_image_titles, relabel_images
