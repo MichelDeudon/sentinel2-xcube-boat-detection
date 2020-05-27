@@ -1,6 +1,7 @@
 import pathlib
 import math
 import io
+from typing import Dict, List, Tuple
 from pathlib import Path
 from skimage.io import imread
 import matplotlib.pyplot as plt
@@ -14,25 +15,53 @@ from PIL import Image
 
 
 
-def change_colormap(image_path: pathlib.Path, cmap='RdYlBu', reverse=True):
+def transform_img_path(image_path: pathlib.Path, cmap='RdYlBu', reverse=True):
+    """
+    read image from file, map it to the given cmap and return the byte array of it
+    :param image_path: path of the image
+    :param cmap: color map, followed matplotlib format
+    :param reverse: if True will flip the color map and display the false color
+    :return: transformed image as byte array
+    """
     feature = imread(image_path)
     cm = plt.get_cmap(cmap)
     if reverse:
         colored_image = cm(-feature)
     else:
         colored_image = cm(feature)
-    colored_feature = Image.fromarray(np.uint8(colored_image * 255))
+    colored_feature = Image.fromarray(np.uint8(colored_image))
     imgByteArr = io.BytesIO()
     colored_feature.save(imgByteArr, format='PNG')
     imgByteArr = imgByteArr.getvalue()
     return imgByteArr
 
 
+# def transform_img_nparray(image: np.ndarray, cmap='gray'):
+
+#     """
+#     read image from file, map it to the given cmap and return the byte array of it
+#     :param image: path of the image
+#     :param cmap: color map, followed matplotlib format
+#     :return: transformed image as byte array
+#     """
+#     cm = plt.get_cmap(cmap)
+#     colored_image = cm(image)
+#     scaled_image = (colored_image - np.min(colored_image)) / (np.max(colored_image) - np.min(colored_image))
+#     colored_feature = Image.fromarray(np.uint8(scaled_image * 255))
+#     imgByteArr = io.BytesIO()
+#     colored_feature.save(imgByteArr, format='PNG')
+#     imgByteArr = imgByteArr.getvalue()
+#     return imgByteArr
+
 
 
 def display_image_and_references(image_path: Path):
+    """
+    display function of superintendent. display img_ndwi and all the other img_ndwi of the same location as reference to labeler
+    :param image_path: image path
+    :return: ipython display handle
+    """
     image_folder = image_path.parent
-    print(image_folder)
 
     other_images = [
         f for f in image_folder.glob("img_ndwi*.png")
@@ -51,7 +80,7 @@ def display_image_and_references(image_path: Path):
             image = other_images[img_index]
             grid[i, j] = widgets.VBox([
                 widgets.Label("Image {0}".format(image.name)),
-                widgets.Image(value=change_colormap(image),
+                widgets.Image(value=transform_img_path(image),
                               layout=widgets.Layout(width='200px', height='200px')),
             ])
 
@@ -61,20 +90,25 @@ def display_image_and_references(image_path: Path):
             widgets.Label("all other images of the same loc"),
             grid,
             widgets.Label("image to label: {0}".format(image_path.name)),
-            widgets.Image(value=change_colormap(image_path), object_fit='none',
+            widgets.Image(value=transform_img_path(image_path), object_fit='none',
                           layout=widgets.Layout(width='300px', height='300px'))
         ]),
 
     ])
     display(image_display)
 
-def display_image_08(image_path: Path):
-    image_display = widgets.VBox([
-        widgets.VBox([
-            widgets.Label("image to label: {0}".format(image_path.name)),
-            widgets.Image(value=change_colormap(image_path, cmap='gray', reverse=False),
-                          layout=widgets.Layout(width='300px', height='300px')),
-        ]),
-
-    ])
-    display(image_display)
+def display_heatmap_prediction(image_titles: List[Tuple[np.ndarray, str]]):
+    """
+    display y_true, heatmap, y_hat of a model
+    :param image_titles: a list of tuple (image, title). Image as ndarray and title of the image
+    :return: ipython display handle
+    """
+   
+    fig, axs = plt.subplots(1,3, figsize=(10,5))
+    for i in range(len(image_titles)):
+        axs[i].imshow(image_titles[i][0], cmap='gray')
+        axs[i].set_title(image_titles[i][1])
+        axs[i].set_xticks([])
+        axs[i].set_yticks([])
+    fig.tight_layout()
+    display(fig)
