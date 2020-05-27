@@ -103,26 +103,12 @@ def display_heatmap_prediction(image_titles: List[Tuple[np.ndarray, str]]):
     :param image_titles: a list of tuple (image, title). Image as ndarray and title of the image
     :return: ipython display handle
     """
-#     fig, axs = plt.subplots(1,3, figsize=(10,5))
-    fig = plt.figure(figsize=(10,5))   
-
-    plt.subplot(1,3,1)
-    plt.imshow(image_titles[0][0], cmap='gray')
-    plt.title(image_titles[0][1])
-    plt.xticks([])
-    plt.yticks([])
-                
-    plt.subplot(1,3,2)
-               
-    plt.imshow(image_titles[1][0], cmap='gray')
-    plt.title(image_titles[1][1])
-    plt.xticks([])
-    plt.yticks([])
-                
-    plt.subplot(1,3,3)
-    plt.imshow(image_titles[2][0], cmap='gray')
-    plt.title(image_titles[2][1])
-    plt.xticks([])
-    plt.yticks([])
+   
+    fig, axs = plt.subplots(1,3, figsize=(10,5))
+    for i in range(len(image_titles)):
+        axs[i].imshow(image_titles[i][0], cmap='gray')
+        axs[i].set_title(image_titles[i][1])
+        axs[i].set_xticks([])
+        axs[i].set_yticks([])
     fig.tight_layout()
     display(fig)
