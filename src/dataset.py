@@ -143,10 +143,10 @@ class S2_Dataset(Dataset):
                 imset['img'] = imset['img'][:,:,::-1]
             k = np.random.randint(4) # random rotate
             imset['img'] = np.rot90(imset['img'], k=k, axes=(1,2))
-            #CROP_SIZE = 10
-            #crop_x = np.random.randint(0,CROP_SIZE)
-            #crop_y = np.random.randint(0,CROP_SIZE)
-            #imset['img'] = imset['img'][:,crop_x:-CROP_SIZE+crop_x,crop_y:-CROP_SIZE+crop_y]
+            CROP_SIZE = 2 ##### #####
+            crop_x = np.random.randint(0,CROP_SIZE)
+            crop_y = np.random.randint(0,CROP_SIZE)
+            imset['img'] = imset['img'][:,crop_x:-CROP_SIZE+crop_x,crop_y:-CROP_SIZE+crop_y]
 
         imset['img'] = torch.from_numpy(skimage.img_as_float(imset['img']))
         imset['y'] = torch.from_numpy(np.array([imset['y']]))
