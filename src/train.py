@@ -11,7 +11,7 @@ from src.model import Model
 
 def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, ld=0.3, water_ndwi=-1.0, n_epochs=10, lr=0.005, lr_step=2, lr_decay=0.95, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1, version=0.0):
   """
-  Trains SegNet for unsupervised segmentation of EO imagery, with a parallelized variant of K-means.
+  Trains a neural network for boat traffic detection.
   Args:
       train_dataloader, val_dataloader: torch.Dataloader
       input_dim: int, number of input channels
@@ -83,9 +83,9 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
             print('Epoch {}: train_clf_error {:.5f} / train_reg_error {:.5f} / val_clf_error {:.5f} / val_reg_error {:.5f}'.format(best_epoch, train_clf_error, train_reg_error, val_clf_error, val_reg_error))
     
   return best_metrics
-            
-    
-def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filter_on=None, plot_heatmap=False):
+
+
+def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filter_on=None, plot_heatmap=False, water_ndwi=0.5, filter_peaks=True):
     """ Run model on dataset and display success or failures. Scatter plot predicted counts vs. true counts.
     Args:
         model: pytorch Model
@@ -93,6 +93,8 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
         hidden_channel: int, id of hidden channel to display
         success: bool. if True will return success, otherwise failures. 
         filter_on: int, class to filter results. Default, None.
+        water_ndwi: float in [-1,1] for water detection.
+        filter_peaks: bool
         plot_heatmap: bool
     """
     
@@ -107,8 +109,8 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
         p = 1.0*(y>0)
         filename = imset['filename']
         image_titles = []
-        if filter_on is None or (int(y)>=filter_on and filter_on!=0) or (int(y)==0 and filter_on==0):
-            x, density_map, p_hat, y_hat = model(imset['img'].float().reshape(1, channels, height, width))
+        if filter_on is None or (int(y)==filter_on):
+            x, density_map, p_hat, y_hat = model(imset['img'].float().reshape(1, channels, height, width), water_ndwi=water_ndwi, filter_peaks=filter_peaks)
             x = x.detach().cpu().numpy()[0]
             heatmap = density_map.detach().cpu().numpy()[0][0] # H,W heatmap
             y_hat = float(y_hat.detach().cpu().numpy()[0])
@@ -117,7 +119,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
             predicted_count.append(y_hat)
             true_count.append(y)
             
-            if plot_heatmap and (success is None or (success and int(y_hat>0.5) == int(p)) or (not success and int(y_hat>0.5) != int(p)) ):
+            if plot_heatmap and (success is None or (success and int(np.rint(y_hat)) == int(y)) or (not success and int(np.rint(y_hat)) != int(y)) ):
                 print(filename)
                 relabel_images.append(Path(filename))
                 fig = plt.figure(figsize=(10,5))    
@@ -139,7 +141,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
                 plt.xticks([])
                 plt.yticks([])
                 plt.subplot(1,3,3)
-                plt.imshow(heatmap, cmap='gray')
+                plt.imshow(heatmap, cmap='coolwarm', vmin=0., vmax=1.0)
                 plt.title('y_hat = {:.4f}'.format(y_hat))
                 image_titles.append((heatmap, 'y_hat = {:.4f}'.format(y_hat)))
                 plt.xticks([])
