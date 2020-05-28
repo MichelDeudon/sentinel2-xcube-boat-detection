@@ -48,6 +48,24 @@ def plot_trend(counts, timestamps):
     plt.show()
     
     
+def filter_maxima(image, min_distance=2, threshold_abs=0.5):
+    """ Similar to skimage.feature.peak.peak_local_max(image, min_distance=10, threshold_abs=0, threshold_rel=0.10000000000000001, num_peaks=inf)
+    Args:
+        image: tensor (B,C,H,W), density map
+        min_distance: int
+        threshold_abs: float
+    Returns:
+        maxima_filter: tensor (B,C,H,W), new density map
+    """
+    
+    batch_size, channels, height, width = image.shape
+    max_pool = torch.nn.MaxPool2d(min_distance, stride=2, padding=0)
+    maxima_filter = max_pool(image)    
+    maxima_filter = torch.nn.functional.interpolate(maxima_filter, size=(height,width), mode='nearest')
+    maxima_filter = image*(image==maxima_filter)*(maxima_filter>threshold_abs)
+    return maxima_filter
+
+    
 class Model(nn.Module):
     ''' A neural network to detect and count boats in Sentinel-2 imagery '''
 
@@ -86,6 +104,13 @@ class Model(nn.Module):
         self.dropout = nn.Dropout2d(p=drop_proba, inplace=False)
         self.max_pool = nn.MaxPool2d(pool_size, stride=pool_size)
                 
+        #self.fuse_layer = nn.Sequential(
+        #    nn.MaxPool2d(pool_size//2, stride=pool_size//2),
+        #    nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=kernel_size, padding=int(pad)*kernel_size//2),
+        #    nn.PReLU(),
+        #    nn.MaxPool2d(2, stride=2),
+        #)
+        
         self.encode_patch = nn.Sequential(
             nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=1, padding=0),
             nn.PReLU(),
@@ -96,12 +121,13 @@ class Model(nn.Module):
         self.to(self.device)
         
         
-    def forward(self, x, water_ndwi=-1.0, flip=True):
+    def forward(self, x, water_ndwi=-1.0, filter_peaks=False):
         '''
         Predict boat presence (or counts) in an image x
         Args:
             x: tensor (B, C_in, H, W), aerial images
             water_ndwi: float in [-1,1] for water detection. -1. will apply no masking.
+            filter_peaks: bool
         Returns:
             pixel_embedding: tensor (B, C_h, H, W), hidden tensor
             density_map: tensor (B, 1, H//pool_size, W//pool_size), boat density
@@ -115,14 +141,21 @@ class Model(nn.Module):
         pixel_embedding = pixel_embedding + self.residual(pixel_embedding) # h1 (B, C_h, H, W)
         pixel_embedding = self.dropout(pixel_embedding)
         patch_embedding = self.max_pool(pixel_embedding)
+        #patch_embedding = self.fuse_layer(pixel_embedding)
+        
         z = self.encode_patch(patch_embedding) # z (B, n_max+1, H//pool_size, W//pool_size) multinomial distribution Z_i=k if k boats, 0 <= k < n_max+1
         p_hat = torch.sum(z[:,1:], dim=1, keepdim=True) # probability there is a boat or more (for each chunk)
         p_hat = torch.max(torch.max(p_hat,dim=-1).values ,dim=-1).values # (B, 1) tight lower bound on probability there is a boat in full image
         density_map = torch.sum(torch.cat([float(k)*z[:,k:k+1] for k in range(z.size(1))],1), dim=1, keepdim=True) # density map (counts) pool_size res (10pix = 100m)   
-        if channels > 1:
+        
+        if channels > 1: # water background post process
             water_mask = 1.0*(x[:,1:2]<0.5*(-water_ndwi+1)) # background, negative, rescaled ndwi >> mask density_heatmap # (B, 1, H, W),
             proba_water = self.max_pool(water_mask)
             density_map = proba_water*density_map # density map (counts) pool_size res (10pix = 100m)
+            
+        if filter_peaks is True: # local maxima post process 
+            density_map = filter_maxima(density_map, min_distance=2, threshold_abs=0.5) ##### add min_distance, threshold_abs to forward parameters
+            
         y_hat = torch.sum(density_map, (2,3)) # estimate number of boats in image (where there are boats)
         return pixel_embedding, density_map, p_hat, y_hat
     
@@ -156,7 +189,7 @@ class Model(nn.Module):
         p_ = 1.0*(p_hat>0.5)
         eps = 0.0001
         accuracy = (torch.mean(1.0*(p_==p)).detach()).cpu().numpy()
-        precision = ((torch.sum(p_*p)+eps)/(torch.sum(p_hat)+eps)).detach().cpu().numpy()
+        precision = ((torch.sum(p_*p)+eps)/(torch.sum(p_)+eps)).detach().cpu().numpy()
         recall = ((torch.sum(p_*p)+eps)/(torch.sum(p)+eps)).detach().cpu().numpy()
         f1 = 2*precision*recall/(precision+recall)
         metrics = {'loss':loss, 'clf_error':clf_error, 'reg_error':reg_error, 'accuracy':accuracy, 'precision':precision, 'recall':recall, 'f1':f1}
@@ -175,7 +208,7 @@ class Model(nn.Module):
             self.load_state_dict(torch.load(checkpoint_file))
             
             
-    def chip_and_count(self, x, water_ndwi=0.5, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False, outliers=100):
+    def chip_and_count(self, x, water_ndwi=0.5, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False, outliers=100, filter_peaks=True):
         """ Chip an image, predict presence for each chip and return heatmap of presence and total counts.
         Args:
             x: tensor (N, C_in, H, W)
@@ -200,7 +233,7 @@ class Model(nn.Module):
             timestamps = np.arange(len(x))
             
         for t in range(x.size(0)):
-            _, density_map, p_hat, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi)
+            _, density_map, p_hat, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi, filter_peaks=filter_peaks)
             density_map = density_map.detach().cpu().numpy() # (B, 1, H, W)
             y_hat = y_hat.detach().cpu().numpy() # (B, 1)
             if float(y_hat[0]) <= outliers:
