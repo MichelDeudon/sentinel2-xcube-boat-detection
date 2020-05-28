@@ -13,7 +13,7 @@ from src.model import Model
 
 ### load pretrained model
 checkpoint_dir = "/home/jovyan/checkpoints"
-version = "0.0.1"
+version = "0.0.3"
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu' # gpu support
 model = Model(input_dim=2, hidden_dim=16, kernel_size=3, device=device, version=version)
 checkpoint_file = os.path.join(checkpoint_dir, model.folder, 'model.pth')
@@ -25,7 +25,7 @@ print('Device: {} \n'.format(device))
 ### load predefined AOI and time windows
 data_dir = "/home/jovyan/data" # data directory (path)
 RADIUS = 5000 # AOI radius in meters
-max_cloud_proba = 0.1 # max cloud coverage
+max_cloud_proba = 0.05 # max cloud coverage
 with open(os.path.join(data_dir, 'aoi.json'), 'r') as f:
     aoi_file = json.load(f)['Straits']
     aoi_names = [name for name in aoi_file.keys()]
@@ -78,18 +78,23 @@ for aoi_name in aoi_names:
     output_filename = os.path.join(data_dir, 'outputs', '{}.json'.format(query))
     if not os.path.exists(output_filename):
         for time_window in [time_window1, time_window2]:
-            traffic = coords2counts(coords, radius=RADIUS, time_window=time_window, time_period=time_period, max_cloud_proba=max_cloud_proba)
-            if query in boat_traffic:
-                boat_traffic[query].append(traffic)
-            else:
-                boat_traffic[query] = [traffic]
-        with open(output_filename, 'w+') as f:
-            json.dump(boat_traffic[query], f, sort_keys=True, indent=4)
+            try:
+                traffic = coords2counts(coords, radius=RADIUS, time_window=time_window, time_period=time_period, max_cloud_proba=max_cloud_proba)
+                if query in boat_traffic:
+                    boat_traffic[query].append(traffic)
+                else:
+                    boat_traffic[query] = [traffic]
+            except:
+                pass
+            
+        if query in boat_traffic:
+            with open(output_filename, 'w+') as f:
+                json.dump(boat_traffic[query], f, sort_keys=True, indent=4)
+
     else:
         with open(output_filename, 'r') as f:
             boat_traffic[query] = json.load(f)
         
-    #break #####
     ##### Automate analysis for AOI + time window
     
     ##### Import argparse --> CLI
@@ -112,8 +117,7 @@ def aggregate_counts(counts, timestamps):
 
 kernel_size = 3 # median filtering (noisy signal)
 for query in boat_traffic.keys():
-    
-    
+
     timestamps0 =list(boat_traffic[query][0].keys())
     counts0 = list(boat_traffic[query][0].values())
     counts0 = list(medfilt(counts0, kernel_size=kernel_size))
