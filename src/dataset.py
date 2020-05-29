@@ -67,12 +67,16 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
             timestamps = df_labels_groupby.get_group(name = subdir)["timestamp"] # if count is negative, will not appear in the group
             for timestamp in timestamps:
                 img_timestamp = []
-                for band in band_list: #img_08, bg_ndwi
-                    if band.startswith('bg'):
-                        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band +  "*.png")))
-                    else:
-                        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band + "*t_" + timestamp + "*.png")))
-                img_paths.append(img_timestamp)            
+                #for band in band_list: #img_08, bg_ndwi
+                #    if band.startswith('img_'):
+                #        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band +  "*.png")))
+                #    else:
+                #        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band + "*t_" + timestamp + "*.png"))) 
+                img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, 'img_08_t_' + timestamp + ".png")))
+                img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, "bg_ndwi.png")))  #img_08, bg_ndwi
+                if len(img_timestamp)==2: ##### sanity check (BUG for certain coords / chips)
+                    img_paths.append(img_timestamp)            
+                    
         return np.array(img_paths)
     
     train_img_paths = get_img_paths(train_coordinates) # get list of filenames
@@ -106,10 +110,11 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
 class S2_Dataset(Dataset):
     """ Derived Dataset class for loading imagery from an imset_dir."""
 
-    def __init__(self, imset_dir, augment=True, labels_filename='data/labels.csv'):
+    def __init__(self, imset_dir, augment=True, crop_size=2, labels_filename='data/labels.csv'):
         super().__init__()
         self.img_paths = imset_dir
         self.augment = augment
+        self.crop_size = crop_size # if self.augment is True
         self.n_loc = len(np.unique(['/'.join(filenames[0].split('/')[:-1]) for filenames in self.img_paths]))
         self.df_labels = pd.read_csv(labels_filename)
                     
@@ -126,13 +131,12 @@ class S2_Dataset(Dataset):
         imset['img'] = np.stack([imread(filename) for filename in self.img_paths[index]],0)
         
         filename = self.img_paths[index][0] # ex: /home/jovyan/data/chips/lat_43_09_lon_5_93/img_08_t_2020-02-17.png
+        imset['filename'] = filename
+        
         lat_lon = filename.split('/')[-2]
         timestamp = filename.split('/')[-1].replace('.png','')[-10:]
-        index = (self.df_labels['lat_lon']==lat_lon) * (self.df_labels['timestamp']==timestamp)        
-        #imset['y'] = float(self.df_labels[self.df_labels['file_path']==self.img_paths[index][0]]['count'].values)
+        index = (self.df_labels['lat_lon']==lat_lon) * (self.df_labels['timestamp']==timestamp)
         imset['y'] = float(self.df_labels[index]['count'].values)
-        
-        imset['filename'] = filename
         imset['n'] = float(len([1 for file in os.listdir('/'.join(imset['filename'].split('/')[:-1])) if file.startswith('img_08')]))
         
         if self.augment is True:
@@ -143,10 +147,9 @@ class S2_Dataset(Dataset):
                 imset['img'] = imset['img'][:,:,::-1]
             k = np.random.randint(4) # random rotate
             imset['img'] = np.rot90(imset['img'], k=k, axes=(1,2))
-            CROP_SIZE = 2 ##### #####
-            crop_x = np.random.randint(0,CROP_SIZE)
-            crop_y = np.random.randint(0,CROP_SIZE)
-            imset['img'] = imset['img'][:,crop_x:-CROP_SIZE+crop_x,crop_y:-CROP_SIZE+crop_y]
+            crop_x = np.random.randint(0, self.crop_size)
+            crop_y = np.random.randint(0, self.crop_size)
+            imset['img'] = imset['img'][:, self.crop_size:-self.crop_size+crop_x, crop_y:-self.crop_size+crop_y]
 
         imset['img'] = torch.from_numpy(skimage.img_as_float(imset['img']))
         imset['y'] = torch.from_numpy(np.array([imset['y']]))
