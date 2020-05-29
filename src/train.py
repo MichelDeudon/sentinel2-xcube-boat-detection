@@ -85,7 +85,7 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
   return best_metrics
 
 
-def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filter_on=None, plot_heatmap=False, water_ndwi=0.5, filter_peaks=True):
+def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filter_on=None, plot_heatmap=False, water_ndwi=0.5, filter_peaks=True, shift_pool=True):
     """ Run model on dataset and display success or failures. Scatter plot predicted counts vs. true counts.
     Args:
         model: pytorch Model
@@ -95,6 +95,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
         filter_on: int, class to filter results. Default, None.
         water_ndwi: float in [-1,1] for water detection.
         filter_peaks: bool
+        shift_pool: bool
         plot_heatmap: bool
     """
     
@@ -102,6 +103,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
     true_count = []
     relabel_images = []
     total_image_titles = []
+    mean_error = []
     
     for imset in dataset:
         channels, height, width = imset['img'].shape
@@ -110,19 +112,41 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
         filename = imset['filename']
         image_titles = []
         if filter_on is None or (int(y)==filter_on):
-            x, density_map, p_hat, y_hat = model(imset['img'].float().reshape(1, channels, height, width), water_ndwi=water_ndwi, filter_peaks=filter_peaks)
-            x = x.detach().cpu().numpy()[0]
-            heatmap = density_map.detach().cpu().numpy()[0][0] # H,W heatmap
-            y_hat = float(y_hat.detach().cpu().numpy()[0])
-            p_hat = float(p_hat.detach().cpu().numpy()[0])
+            
+            images = imset['img'].float().reshape(1, channels, height, width)
+            x, density_map, p_hat, y_hat = model(images, water_ndwi=water_ndwi, filter_peaks=filter_peaks)
+            x, density_map, p_hat, y_hat = x.detach().cpu(), density_map.detach().cpu(), p_hat.detach().cpu(), y_hat.detach().cpu()
+            
+            ##### Shift Pool --> Best shift = Low density map std.
+            std = torch.std(density_map)
+            if shift_pool is True:
+                pad_vertical, pad_horizontal = torch.zeros(1,channels, height, 1), torch.zeros(1,channels, 1, width)
+                x1 = torch.cat([images[:,:,1:,:],pad_horizontal], 2)
+                x2 = torch.cat([pad_horizontal,images[:,:,1:-1,:],pad_horizontal], 2)
+                x3 = torch.cat([images[:,:,:,1:],pad_vertical], 3)
+                x4 = torch.cat([pad_vertical, images[:,:,:,1:-1], pad_vertical], 3)
+                for x_shifted in [x1, x2, x3, x4]: # crop
+                    x_, density_map_, p_hat_, y_hat_ = model(x_shifted, water_ndwi=water_ndwi, filter_peaks=filter_peaks)
+                    std_ = torch.std(density_map_.detach().cpu())
+                    if std_<std: # keep density map with lowest variance
+                        std = std_
+                        density_map_ = density_map_.detach().cpu()
+                        p_hat = p_hat_.detach().cpu()
+                        y_hat = y_hat_.detach().cpu()
+            
+            #x = x.detach().cpu().numpy()[0]
+            heatmap = density_map.numpy()[0][0] # H,W heatmap
+            y_hat = float(y_hat.numpy()[0])
+            p_hat = float(p_hat.numpy()[0])
             
             predicted_count.append(y_hat)
             true_count.append(y)
+            mean_error.append(np.abs(y-y_hat))
             
             if plot_heatmap and (success is None or (success and int(np.rint(y_hat)) == int(y)) or (not success and int(np.rint(y_hat)) != int(y)) ):
                 print(filename)
                 relabel_images.append(Path(filename))
-                fig = plt.figure(figsize=(10,5))    
+                fig = plt.figure(figsize=(16,5))    
                 plt.subplot(1,3,1)
                 plt.imshow(imset['img'][0], cmap='gray')
                 plt.title('y_true = {}'.format(int(y)))
@@ -148,11 +172,14 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
                 plt.yticks([])
                 fig.tight_layout()
                 plt.show()
-        total_image_titles.append(image_titles)                
-    plt.plot(np.arange(10), color='black', linestyle='dashed', alpha=0.5)
-    plt.scatter(true_count, predicted_count, color='blue', marker='+', alpha=0.4)
-    plt.xlabel('true counts')
-    plt.ylabel('predicted counts')
+                
+        total_image_titles.append(image_titles)
+        
+    fig = plt.figure(figsize=(5,5))
+    plt.plot(np.arange(6), color='black', linestyle='dashed', alpha=0.5)
+    plt.scatter(true_count, predicted_count, color='blue', marker='+', alpha=0.3)
+    plt.xlabel('True counts \n Mean Count {:.3f}'.format(np.mean(true_count)))
+    plt.ylabel('predicted counts \n Mean Abs. Error: {:.3f}'.format(np.mean(mean_error)))
     plt.title('Predicted vs. True counts')
     plt.show()
     return total_image_titles, relabel_images
