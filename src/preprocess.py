@@ -49,7 +49,7 @@ def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any
     if plot_NDWI:
         (-cube).NDWI.plot.imshow(col='time', col_wrap=4, cmap='RdYlBu') ##### plot False Color instead!!!
     cube['NDWI'] = (cube.NDWI+1.0)/2.0 # from [-1,1] to [0,1]
-    cube = cube*(cube<1.0) # clip other bands to [0,1]
+    cube = cube*(cube<=1.0) + 1.*(cube>1.0) # clip other bands to [0,1]
     background_ndwi = cube.NDWI.min(dim='time')
     return cube, background_ndwi
 
