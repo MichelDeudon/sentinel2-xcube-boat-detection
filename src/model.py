@@ -224,7 +224,8 @@ class Model(nn.Module):
         if timestamps is None:
             timestamps = np.arange(len(x))
             
-        for t in range(x.size(0)):
+        n_frames, channels, height, width = x.shape
+        for t in range(n_frames):
             _, density_map, p_hat, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi, filter_peaks=filter_peaks)
             density_map, p_hat, y_hat = density_map.detach().cpu(), p_hat.detach().cpu(), y_hat.detach().cpu()
                         
@@ -232,12 +233,12 @@ class Model(nn.Module):
             std = torch.std(density_map)
             if shift_pool is True:
                 pad_vertical, pad_horizontal = torch.zeros(1,channels, height, 1), torch.zeros(1,channels, 1, width)
-                x1 = torch.cat([images[:,:,1:,:],pad_horizontal], 2)
-                x2 = torch.cat([pad_horizontal,images[:,:,1:-1,:],pad_horizontal], 2)
-                x3 = torch.cat([images[:,:,:,1:],pad_vertical], 3)
-                x4 = torch.cat([pad_vertical, images[:,:,:,1:-1], pad_vertical], 3)
+                x1 = torch.cat([x[t:t+1,:,1:,:],pad_horizontal], 2)
+                x2 = torch.cat([pad_horizontal,x[t:t+1,:,1:-1,:],pad_horizontal], 2)
+                x3 = torch.cat([x[t:t+1,:,:,1:],pad_vertical], 3)
+                x4 = torch.cat([pad_vertical, x[t:t+1,:,:,1:-1], pad_vertical], 3)
                 for x_shifted in [x1, x2, x3, x4]: # crop
-                    x_, density_map_, p_hat_, y_hat_ = self.forward(x_shifted, water_ndwi=water_ndwi, filter_peaks=filter_peaks)
+                    x_, density_map_, p_hat_, y_hat_ = self.forward(x_shifted.float(), water_ndwi=water_ndwi, filter_peaks=filter_peaks)
                     std_ = torch.std(density_map_.detach().cpu())
                     if std_<std: # keep density map with lowest variance
                         std = std_
