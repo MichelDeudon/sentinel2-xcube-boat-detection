@@ -73,8 +73,8 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
                 #    else:
                 #        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band + "*t_" + timestamp + "*.png"))) 
                 img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, 'img_08_t_' + timestamp + ".png")))
-                img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, "bg_ndwi.png")))  #img_08, bg_ndwi
-                if len(img_timestamp)==2: ##### sanity check (BUG for certain coords / chips)
+                img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, "bg_ndwi.png")))  #img_08, bg_ndwi 
+                if len(img_timestamp)==len(band_list): ##### sanity check (BUG for certain coords / chips)
                     img_paths.append(img_timestamp)            
                     
         return np.array(img_paths)
@@ -149,7 +149,7 @@ class S2_Dataset(Dataset):
             imset['img'] = np.rot90(imset['img'], k=k, axes=(1,2))
             crop_x = np.random.randint(0, self.crop_size)
             crop_y = np.random.randint(0, self.crop_size)
-            imset['img'] = imset['img'][:, self.crop_size:-self.crop_size+crop_x, crop_y:-self.crop_size+crop_y]
+            imset['img'] = imset['img'][:, crop_x:-self.crop_size+crop_x, crop_y:-self.crop_size+crop_y]
 
         imset['img'] = torch.from_numpy(skimage.img_as_float(imset['img']))
         imset['y'] = torch.from_numpy(np.array([imset['y']]))
