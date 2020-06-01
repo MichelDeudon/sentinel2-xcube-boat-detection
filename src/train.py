@@ -85,7 +85,7 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
   return best_metrics
 
 
-def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filter_on=None, plot_heatmap=False, water_ndwi=0.5, filter_peaks=True, shift_pool=True):
+def get_failures_or_success(model, dataset, hidden_channel=0, success=None, filter_on=None, plot_heatmap=False, water_ndwi=0.5, filter_peaks=True, shift_pool=False, downsample=False):
     """ Run model on dataset and display success or failures. Scatter plot predicted counts vs. true counts.
     Args:
         model: pytorch Model
@@ -94,8 +94,9 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
         success: bool. if True will return success, otherwise failures. 
         filter_on: int, class to filter results. Default, None.
         water_ndwi: float in [-1,1] for water detection.
-        filter_peaks: bool
-        shift_pool: bool
+        filter_peaks: bool,
+        shift_pool: bool,
+        downsample: bool,
         plot_heatmap: bool
     """
     
@@ -114,7 +115,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
         if filter_on is None or (int(y)==filter_on):
             
             images = imset['img'].float().reshape(1, channels, height, width)
-            x, density_map, p_hat, y_hat = model(images, water_ndwi=water_ndwi, filter_peaks=filter_peaks)
+            x, density_map, p_hat, y_hat = model(images, water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)
             x, density_map, p_hat, y_hat = x.detach().cpu(), density_map.detach().cpu(), p_hat.detach().cpu(), y_hat.detach().cpu()
             
             ##### Shift Pool --> Best shift = Low density map std.
@@ -126,7 +127,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
                 x3 = torch.cat([images[:,:,:,1:],pad_vertical], 3)
                 x4 = torch.cat([pad_vertical, images[:,:,:,1:-1], pad_vertical], 3)
                 for x_shifted in [x1, x2, x3, x4]: # crop
-                    x_, density_map_, p_hat_, y_hat_ = model(x_shifted, water_ndwi=water_ndwi, filter_peaks=filter_peaks)
+                    x_, density_map_, p_hat_, y_hat_ = model(x_shifted, water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)
                     std_ = torch.std(density_map_.detach().cpu())
                     if std_<std: # keep density map with lowest variance
                         std = std_
@@ -134,7 +135,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=True, filt
                         p_hat = p_hat_.detach().cpu()
                         y_hat = y_hat_.detach().cpu()
             
-            #x = x.detach().cpu().numpy()[0]
+            x = x.detach().cpu().numpy()[0]
             heatmap = density_map.numpy()[0][0] # H,W heatmap
             y_hat = float(y_hat.numpy()[0])
             p_hat = float(p_hat.numpy()[0])

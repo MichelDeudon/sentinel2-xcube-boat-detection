@@ -25,7 +25,7 @@ def plot_heatmaps(timestamps, x, heatmaps, counts, max_frames=5):
         plt.xticks([])
         plt.yticks([])
         plt.subplot(2,n_frames,1+idx+n_frames)
-        plt.imshow(heatmaps[idx])
+        plt.imshow(heatmaps[idx], cmap='coolwarm')
         plt.title('{:.2f} boats'.format(counts[idx]))
         plt.xticks([])
         plt.yticks([])
@@ -48,20 +48,21 @@ def plot_trend(counts, timestamps):
     plt.show()
     
     
-def filter_maxima(image, min_distance=2, threshold_abs=0.05, threshold_rel=0.5):
+def filter_maxima(image, min_distance=2, threshold_abs=0.05, threshold_rel=0.5, pad=True):
     """ Similar to skimage.feature.peak.peak_local_max(image, min_distance=10, threshold_abs=0, threshold_rel=0.10000000000000001, num_peaks=inf)
     Args:
         image: tensor (B,C,H,W), density map
         min_distance: int
         threshold_abs: float. 0. = no filter.
         threshold_rel: float. 0. = no filter
+        pad: bool
     Returns:
         maxima_filter: tensor (B,C,H,W), new density map
     """
     
     batch_size, channels, height, width = image.shape
-    max_pool = torch.nn.MaxPool2d(min_distance, stride=1, padding=0)
-    maxima_filter = max_pool(image)    
+    max_pool = torch.nn.MaxPool2d(min_distance, stride=1, padding=int(pad)*min_distance//2)
+    maxima_filter = max_pool(image)
     maxima_filter = torch.nn.functional.interpolate(maxima_filter, size=(height,width), mode='nearest')
     maxima_filter = image*(image>=maxima_filter*threshold_rel)*(maxima_filter>threshold_abs)
     return maxima_filter
@@ -106,6 +107,7 @@ class Model(nn.Module):
         self.max_pool = nn.MaxPool2d(pool_size, stride=pool_size)
 
         self.encode_patch = nn.Sequential(
+            #nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=kernel_size, padding=int(pad)*kernel_size//2),
             nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=1, padding=0),
             nn.PReLU(),
             nn.Conv2d(in_channels=hidden_dim, out_channels=n_max+1, kernel_size=1, padding=0),
@@ -115,7 +117,7 @@ class Model(nn.Module):
         self.to(self.device)
         
         
-    def forward(self, x, water_ndwi=-1.0, filter_peaks=False):
+    def forward(self, x, water_ndwi=0.4, filter_peaks=False, downsample=False):
         '''
         Predict boat presence (or counts) in an image x
         Args:
@@ -134,25 +136,33 @@ class Model(nn.Module):
         pixel_embedding = self.embed(x)
         pixel_embedding = pixel_embedding + self.residual(pixel_embedding) # h1 (B, C_h, H, W)
         pixel_embedding = self.dropout(pixel_embedding)
-        patch_embedding = self.max_pool(pixel_embedding)
         
+        if downsample is True:
+            patch_embedding = self.max_pool(pixel_embedding)
+        else:
+            patch_embedding = pixel_embedding
+            
         z = self.encode_patch(patch_embedding) # z (B, n_max+1, H//pool_size, W//pool_size) multinomial distribution Z_i=k if k boats, 0 <= k < n_max+1
         p_hat = torch.sum(z[:,1:], dim=1, keepdim=True) # probability there is a boat or more (for each chunk)
         p_hat = torch.max(torch.max(p_hat,dim=-1).values ,dim=-1).values # (B, 1) tight lower bound on probability there is a boat in full image
         density_map = torch.sum(torch.cat([float(k)*z[:,k:k+1] for k in range(z.size(1))],1), dim=1, keepdim=True) # density map (counts) pool_size res (10pix = 100m)   
         
         if channels > 1: # water background post process
-            water_mask = 1.0*(x[:,1:2]<0.5*(-water_ndwi+1)) # background, negative, rescaled ndwi >> mask density_heatmap # (B, 1, H, W),
-            proba_water = self.max_pool(water_mask)
+            proba_water = 1.0*(x[:,1:2]<0.5*(-water_ndwi+1)) # background, negative, rescaled ndwi >> mask density_heatmap # (B, 1, H, W),
+            if downsample is True:
+                proba_water = self.max_pool(proba_water)
             density_map = proba_water*density_map # density map (counts) pool_size res (10pix = 100m)
             
         if filter_peaks is True: # local maxima post process 
-            density_map = filter_maxima(density_map, min_distance=2, threshold_abs=0.25, threshold_rel=0.9) ##### add min_distance, threshold_abs, threshold_rel to forward parameters
+            if downsample is True:
+                density_map = filter_maxima(density_map, min_distance=2, threshold_abs=0.25, threshold_rel=0.9, pad=False)
+            else:
+                density_map = filter_maxima(density_map, min_distance=11, threshold_abs=0.15, threshold_rel=1.0, pad=True) ##### add min_distance, threshold_abs, threshold_rel to forward parameters
             
         y_hat = torch.sum(density_map, (2,3)) # estimate number of boats in image (where there are boats)
         return pixel_embedding, density_map, p_hat, y_hat
     
-    def get_loss(self, x, y, n=None, ld=0.3, water_ndwi=-1.0):
+    def get_loss(self, x, y, n=None, ld=0.5, water_ndwi=0.4, filter_peaks=False, downsample=True):
         '''
         Computes loss function for classification / regression (params: low-dim projection W + n_clusters centroids)
         Args:
@@ -168,7 +178,7 @@ class Model(nn.Module):
         ##### Optional: Regularize entropy (z) or density_map on land, or ...
         
         x = x.to(self.device)
-        x_hidden, density_map, p_hat, y_hat = self.forward(x, water_ndwi=water_ndwi, filter_peaks=False)  # (B,1,n_filters,H,W)
+        x_hidden, density_map, p_hat, y_hat = self.forward(x, water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)  # (B,1,n_filters,H,W)
         
         # compute loss
         p = 1.0*(y>0)
@@ -202,7 +212,7 @@ class Model(nn.Module):
             self.load_state_dict(torch.load(checkpoint_file))
             
             
-    def chip_and_count(self, x, water_ndwi=0.5, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False, filter_peaks=True, shift_pool=True):
+    def chip_and_count(self, x, water_ndwi=0.5, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False, filter_peaks=True, shift_pool=False, downsample=True):
         """ Chip an image, predict presence for each chip and return heatmap of presence and total counts.
         Args:
             x: tensor (N, C_in, H, W)
@@ -212,7 +222,8 @@ class Model(nn.Module):
             max_frames:
             plot_indicator:
             filter_peaks: bool,
-            shift_pool: bool
+            shift_pool: bool,
+            downsample: bool
         Returns:
             heatmaps: list of np.array of size (H/chunk_size, W/chunk_size)
             counts: list of int
@@ -226,19 +237,19 @@ class Model(nn.Module):
             
         n_frames, channels, height, width = x.shape
         for t in range(n_frames):
-            _, density_map, p_hat, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi, filter_peaks=filter_peaks)
+            _, density_map, p_hat, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)
             density_map, p_hat, y_hat = density_map.detach().cpu(), p_hat.detach().cpu(), y_hat.detach().cpu()
                         
             ##### Shift Pool --> Best shift = Low density map std.
             std = torch.std(density_map)
             if shift_pool is True:
                 pad_vertical, pad_horizontal = torch.zeros(1,channels, height, 1), torch.zeros(1,channels, 1, width)
-                x1 = torch.cat([x[t:t+1,:,1:,:],pad_horizontal], 2)
-                x2 = torch.cat([pad_horizontal,x[t:t+1,:,1:-1,:],pad_horizontal], 2)
-                x3 = torch.cat([x[t:t+1,:,:,1:],pad_vertical], 3)
-                x4 = torch.cat([pad_vertical, x[t:t+1,:,:,1:-1], pad_vertical], 3)
+                x1 = torch.cat([x[t:t+1,:,1:,:].float(), pad_horizontal], 2)
+                x2 = torch.cat([pad_horizontal,x[t:t+1,:,1:-1,:].float(), pad_horizontal], 2)
+                x3 = torch.cat([x[t:t+1,:,:,1:].float(), pad_vertical], 3)
+                x4 = torch.cat([pad_vertical, x[t:t+1,:,:,1:-1].float(), pad_vertical], 3)
                 for x_shifted in [x1, x2, x3, x4]: # crop
-                    x_, density_map_, p_hat_, y_hat_ = self.forward(x_shifted.float(), water_ndwi=water_ndwi, filter_peaks=filter_peaks)
+                    x_, density_map_, p_hat_, y_hat_ = self.forward(x_shifted, water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)
                     std_ = torch.std(density_map_.detach().cpu())
                     if std_<std: # keep density map with lowest variance
                         std = std_

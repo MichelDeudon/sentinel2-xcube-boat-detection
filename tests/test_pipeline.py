@@ -42,7 +42,7 @@ def test_model():
 
     hidden_dim, pool_size, n_max = 16, 10, 1
     model = Model(input_dim=input_dim, hidden_dim=hidden_dim, kernel_size=3, pool_size=pool_size, n_max=n_max, pad=True, device='cpu', version='0.0.2')
-    pixel_embedding, density_map, p_hat, y_hat = model(x, water_ndwi=-1.0)
+    pixel_embedding, density_map, p_hat, y_hat = model(x, water_ndwi=-1.0, downsample=True)
     assert pixel_embedding.shape == (batch_size, hidden_dim, H, W) # pixel embedding
     assert density_map.shape == (batch_size, 1, H//pool_size, W//pool_size) # density map
     assert p_hat.shape == y.shape # proba boat presence
