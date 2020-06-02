@@ -24,119 +24,15 @@ list_of_locations = {
     "St_Tropez": {"lat": 43.28, "lon": 6.635}
 }
 
+global g_selected_location
+g_selected_location = None
 
 
-app.layout = html.Div(
-    children=[
-        html.Div(
-            className="row",
-            children=[
-                # Column for user controls
-                html.Div(
-                    className="four columns div-user-controls",
-                    children=[
-                        html.Img(
-                            className="logo", src=app.get_asset_url("dash-logo-new.png")
-                        ),
-                        html.H2("DASH APP"),
-                        html.P(
-                            """Select different days using the date picker or by selecting
-                            different time frames on the histogram."""
-                        ),
-                        # Change to side-by-side for mobile layout
-                        html.Div(
-                            className="row",
-                            children=[
-                                html.Div(
-                                    className="div-for-dropdown",
-                                    children=[
-                                        # Dropdown for locations on map
-                                        dcc.Dropdown(
-                                            id="location-dropdown",
-                                            options=[
-                                                {"label": i, "value": i}
-                                                for i in list_of_locations
-                                            ],
-                                            placeholder="Select a location",
-                                        )
-                                    ],
-                                ),
-                                html.Div(
-                                    className="div-for-dropdown",
-                                    children=[
-                                        # Dropdown to select times
-                                        dcc.Dropdown(
-                                            id="bar-selector",
-                                            options=[
-                                                {
-                                                    "label": str(y),
-                                                    "value": str(y),
-                                                }
-                                                for y in ["2019", "2020"]
-                                            ],
-                                            multi=True,
-                                            placeholder="Select years",
-                                        )
-                                    ],
-                                ),
-                            ],
-                        ),
-                        html.P(id="total-rides"),
-                        html.P(id="total-rides-selection"),
-                        html.P(id="date-value"),
-                        dcc.Markdown(
-                            children=[
-                                "Source: [FiveThirtyEight](https://github.com/fivethirtyeight/uber-tlc-foil-response/tree/master/uber-trip-data)"
-                            ]
-                        ),
-                    ],
-                ),
-                # Column for app graphs and plots
-                html.Div(
-                    className="eight columns div-for-charts bg-grey",
-                    children=[
-                        dcc.Graph(id="map-graph"),
-                        html.Div(
-                            className="text-padding",
-                            children=[
-                                "Select any of the bars on the histogram to section data by time."
-                            ],
-                        ),
-                        dcc.Graph(id="histogram"),
-                    ],
-                ),
-            ],
-        )
-    ]
-)
-
-
-
-
-
-@app.callback(
-    Output("map-graph", "figure"),
-    [
-        Input("bar-selector", "value"),
-        Input("location-dropdown", "value"),
-    ],
-)
-def update_graph(selectedData, selectedLocation):
-    """
-
-    :param selectedData: seleced year
-    :param selectedLocation:
-    :return:
-    """
+def get_map_graph():
     zoom = 3
     latInitial = 46.39
     lonInitial = 13.22
     bearing = 0
-
-    if selectedLocation:
-        zoom = 15.0
-        latInitial = list_of_locations[selectedLocation]["lat"]
-        lonInitial = list_of_locations[selectedLocation]["lon"]
 
     return go.Figure(
         data=[
@@ -155,6 +51,8 @@ def update_graph(selectedData, selectedLocation):
             autosize=True,
             margin=go.layout.Margin(l=0, r=35, t=0, b=0),
             showlegend=False,
+            clickmode='event+select',
+            # clear_on_unhover=True,
             mapbox=dict(
                 accesstoken=mapbox_access_token,
                 center=dict(lat=latInitial, lon=lonInitial),  # 40.7272  # -73.991251
@@ -198,20 +96,109 @@ def update_graph(selectedData, selectedLocation):
         ),
     )
 
-
+app.layout = html.Div(
+    children=[
+        html.Div(
+            className="row",
+            children=[
+                # Column for user controls
+                html.Div(
+                    className="four columns div-user-controls",
+                    children=[
+                        html.Img(
+                            className="logo", src=app.get_asset_url("dash-logo-new.png")
+                        ),
+                        html.H2("DASH APP"),
+                        html.P(
+                            """Select different locations or select
+                            different years."""
+                        ),
+                        # Change to side-by-side for mobile layout
+                        html.Div(
+                            className="row",
+                            children=[
+                                html.Div(
+                                    className="div-for-dropdown",
+                                    children=[
+                                        # Dropdown for locations on map
+                                        dcc.Dropdown(
+                                            id="location-dropdown",
+                                            options=[
+                                                {"label": i, "value": i}
+                                                for i in list_of_locations
+                                            ],
+                                            placeholder="Select a location",
+                                        )
+                                    ],
+                                ),
+                                html.Div(
+                                    className="div-for-dropdown",
+                                    children=[
+                                        # Dropdown to select times
+                                        dcc.Dropdown(
+                                            id="bar-selector",
+                                            options=[
+                                                {
+                                                    "label": str(y),
+                                                    "value": str(y),
+                                                }
+                                                for y in ["2019", "2020"]
+                                            ],
+                                            multi=True,
+                                            placeholder="Select years",
+                                        )
+                                    ],
+                                ),
+                                html.P(
+                                    """Mean count of all locations overtime."""
+                                ),
+                                dcc.Graph(id="histogram"),
+                            ],
+                        ),
+                    ],
+                ),
+                # Column for app graphs and plots
+                html.Div(
+                    className="eight columns div-for-charts bg-grey",
+                    children=[
+                        dcc.Graph(id="map-graph", figure=get_map_graph()),
+                        html.Div(
+                            className="text-padding",
+                            children=[
+                                "Select any of the bars on the histogram to section data by time."
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )
+    ]
+)
 
 
 # Update Histogram Figure based on Month, Day and Times Chosen
 @app.callback(
     Output("histogram", "figure"),
-    [Input("bar-selector", "value"), Input("location-dropdown", "value")],
+    [Input("bar-selector", "value"), Input("location-dropdown", "value"), Input('map-graph', 'clickData')]
 )
-
-def update_histogram(barSelection, locationSelection):
-
-    if locationSelection or barSelection:
+def update_histogram(barSelection, locationSelection, clickData):
+    global g_selected_location
+    print(f"bar selection: {barSelection}, locationSelection: {locationSelection}, clickData: {clickData}")
+    print(g_selected_location)
+    if clickData:
+        selected_location = clickData["points"][0]["text"]
+        if selected_location != g_selected_location:
+            g_selected_location = selected_location
+            xVal, yVal, colorVal = get_selection(barSelection, selected_location)
+        # print(f"clickData get {clickData}")
+    elif locationSelection and g_selected_location != locationSelection:
+        g_selected_location = locationSelection
         xVal, yVal, colorVal = get_selection(barSelection, locationSelection)
-    else:
+
+    if clickData is None and locationSelection is None:
+        g_selected_location = None
+
+    if g_selected_location is None:
         xVal, yVal, colorVal = get_monthly_aggregation()
 
     layout = go.Layout(
@@ -268,6 +255,22 @@ def update_histogram(barSelection, locationSelection):
         ],
         layout=layout,
     )
+
+
+@app.callback(
+    Output("location-dropdown", "value"),
+    [Input('map-graph', 'clickData')]
+)
+
+def update_location_selection_dropdown(clickData):
+    # print(f"clickData {clickData}")
+    if clickData:
+        selected_location = clickData["points"][0]["text"]
+        return selected_location
+    else:
+        return None
+
+
 
 if __name__ == "__main__":
     app.run_server(debug=True)

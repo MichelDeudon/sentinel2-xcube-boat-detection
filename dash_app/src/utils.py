@@ -3,6 +3,8 @@ from pathlib import Path
 import json
 import datetime
 import pandas as pd
+import glob
+import os
 # def getLatLonColor(selectedData, month, day):
 #     listCoords = totalList[month][day]
 #
@@ -42,7 +44,7 @@ def get_monthly_aggregation():
     json_files = Path("data").glob("*.json")
 
     for location_json_file in json_files:
-        print(location_json_file)
+        # print(location_json_file)
         with open(str(location_json_file)) as f:
             json_obj = json.load(f)
             for each in json_obj:
@@ -52,7 +54,8 @@ def get_monthly_aggregation():
     df["time"] = pd.to_datetime(df["time"])
     mean_df = df.set_index("time").resample("M").mean()
     color_vals = ["#24D249" for _ in range(len(mean_df))]
+    mean_df["color"] = mean_df.index.map(lambda t:  "#FF5050" if t.year == 2020 else "#24D249")
     # breakpoint()
-    return mean_df.index,  mean_df["count"], color_vals
+    return mean_df.index,  mean_df["count"],  mean_df["color"]
 
 # get_monthly_aggregation()

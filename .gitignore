@@ -8,3 +8,4 @@ data/output.json
 src/.ipynb_checkpoints/
 src/__pycache__/
 tests/__pycache__
+dash_app/src/__pycache__
