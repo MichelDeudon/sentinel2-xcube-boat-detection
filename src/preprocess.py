@@ -10,6 +10,7 @@ from skimage import img_as_ubyte
 import torch
 from xarray.core.dataset import Dataset
 from xarray.core.dataarray import DataArray
+import xarray
 from typing import Tuple, List
 
 from src.GIS_utils import bbox_from_point
@@ -190,3 +191,36 @@ def request_save_cubes(start_date: str, end_date: str, lat: float, lon: float, d
     cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba,
                                        nans_how='any', verbose=1, plot_NDWI=False)
     save_cubes(cube, background_ndwi, lat_lon=(lat, lon), data_dir=Path(data_chips_dir), verbose=False)
+
+
+def remove_s1_empty_nans(cube: Dataset, nans_how='any'):
+    all_bands = ["HH", "HV", "VH", "VV", "HH+HV", "VV+VH"]
+    for band in all_bands:
+        try:
+            cube[band].values
+            cube[band] = cube[band].dropna(dim='time', how=nans_how)
+            cube = cube.where(cube[band].mean(dim=('lat', 'lon')) > 0.0, drop=True)
+        except:
+            cube = cube.drop_vars(band)
+    return cube
+
+
+def generate_bg_from_s1(cube: Dataset, band="VH", bg_band="VV", fused_by="min", min_max_rescale=True):
+    if fused_by == "min":
+        background = cube[bg_band].min(dim="time")
+    elif fused_by == "mean":
+        background = cube[bg_band].mean(dim="time")
+    elif fused_by == "median":
+        background = cube[bg_band].median(dim="time")
+    else:
+        background = cube[bg_band].max(dim="time")
+    cube_before_concat = []
+    for t in range(len(cube.time)):
+        bg_removed = cube[band].isel(time=t) - background
+        if min_max_rescale:
+            rescaled = (bg_removed - bg_removed.min()) / (bg_removed.max() - bg_removed.min())
+            cube_before_concat.append(rescaled)
+        else:
+            cube_before_concat.append(bg_removed)
+    cube_after_concat = xarray.concat(cube_before_concat, dim='time')
+    return cube_after_concat, background
