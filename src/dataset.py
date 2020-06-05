@@ -137,7 +137,6 @@ class S2_Dataset(Dataset):
         timestamp = filename.split('/')[-1].replace('.png','')[-10:]
         index = (self.df_labels['lat_lon']==lat_lon) * (self.df_labels['timestamp']==timestamp)
         imset['y'] = float(self.df_labels[index]['count'].values)
-        imset['n'] = float(len([1 for file in os.listdir('/'.join(imset['filename'].split('/')[:-1])) if file.startswith('img_08')]))
         
         if self.augment is True:
             h_flip, v_flip = np.random.rand(1)>0.5, np.random.rand(1)>0.5 # random flip
@@ -153,7 +152,6 @@ class S2_Dataset(Dataset):
 
         imset['img'] = torch.from_numpy(skimage.img_as_float(imset['img']))
         imset['y'] = torch.from_numpy(np.array([imset['y']]))
-        imset['n'] = torch.from_numpy(np.array([imset['n']]))
         return imset
 
     

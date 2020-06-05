@@ -48,13 +48,16 @@ def test_model():
     assert p_hat.shape == y.shape # proba boat presence
     assert y_hat.shape == y.shape # boat counts (expectation)
 
-    metrics = model.get_loss(x, y, n=None, ld=0.2, water_ndwi=-1.0)
+    metrics = model.get_loss(x, y, ld=0.2, water_ndwi=-1.0)
     for metric in ['loss', 'clf_error', 'reg_error', 'accuracy', 'precision', 'recall', 'f1']:
         assert metric in metrics.keys()
 
-    heatmaps, counts = model.chip_and_count(x, water_ndwi=0.5)
+    heatmaps, counts = model.chip_and_count(x, water_ndwi=0.5, downsample=True)
     assert len(heatmaps) == batch_size and heatmaps[0].shape == (H//pool_size, W//pool_size)
     assert len(counts) == batch_size and isinstance(counts[0], float)
+    
+    heatmaps, counts = model.chip_and_count(x, water_ndwi=0.5, downsample=False)
+    assert len(heatmaps) == batch_size and heatmaps[0].shape == (H, W)
 
 
 def test_checkpoint():

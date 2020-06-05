@@ -48,8 +48,8 @@ def coords2counts(model, coords, time_window, radius=5000, time_period='5D', max
     cube = open_cube(cube_config, max_cache_size=2**30)
     x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
     # Detect and count boats!
-    heatmaps, counts = model.chip_and_count(x, water_ndwi=0.5, timestamps=timestamps, filter_peaks=True, shift_pool=False, downsample=False,
-                                           plot_heatmap=True, max_frames=6, plot_indicator=True)
+    heatmaps, counts = model.chip_and_count(x, water_ndwi=0.5, filter_peaks=True, downsample=False,
+                                           plot_heatmap=True, timestamps=timestamps, max_frames=6, plot_indicator=True)
 
     ##### Save AOI, timestamps, counts to geodB
     traffic = {}
