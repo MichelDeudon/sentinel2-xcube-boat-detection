@@ -216,10 +216,11 @@ class Model(nn.Module):
             self.load_state_dict(torch.load(checkpoint_file))
             
             
-    def chip_and_count(self, x, water_ndwi=0.5, filter_peaks=True, downsample=False, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False):
-        """ Chip an image, predict presence for each chip and return heatmap of presence and total counts.
+    def chip_and_count(self, x, clp=None, water_ndwi=0.5, filter_peaks=True, downsample=False, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False):
+        """ Chip an image, predict presence for each chip and return heatmap of presence and total counts. ##### add masks tensor (N, 1, H, W)
         Args:
             x: tensor (N, C_in, H, W)
+            clp: tensor (N, 1, H, W), cloud mask probability in [0,1]
             water_ndwi: float in [-1,1] for water detection.
             filter_peaks: bool,
             downsample: bool,
@@ -240,12 +241,14 @@ class Model(nn.Module):
             
         n_frames, channels, height, width = x.shape
         for t in range(n_frames):
-            _, density_map, p_hat, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)
-            density_map = density_map.detach().cpu().numpy() # (B, 1, H, W)
-            p_hat = p_hat.detach().cpu().numpy()
-            y_hat = y_hat.detach().cpu().numpy() # (B, 1)
-            heatmaps.append(density_map[0][0])
-            counts.append(float(y_hat[0]))
+            _, density_map, _, y_hat = self.forward(x[t:t+1].float(), water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)
+            density_map = density_map.detach().cpu().numpy()[0][0] # (H, W)
+            if clp is None:
+                y_hat = y_hat.detach().cpu().numpy()[0] # (1,)
+            else:
+                y_hat = torch.sum((1-clp[t,0])*density_map) # (1,)
+            heatmaps.append(density_map)
+            counts.append(float(y_hat))
             
         if plot_heatmap is True and timestamps is not None:
             plot_heatmaps(timestamps, x, heatmaps, counts, max_frames=max_frames)
