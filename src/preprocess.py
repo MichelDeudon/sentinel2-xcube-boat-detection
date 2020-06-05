@@ -35,7 +35,8 @@ def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any
         print('Keeping {}/{} images without nans'.format(len(cube.time), n_snaps))
         
     if hasattr(cube, 'CLP'):
-        cube = cube.where(cube.CLP.mean(dim=('lat','lon'))<255*max_cloud_proba, drop=True) # sentinelhub cloud mask
+        cube = cube.where(cube.CLP.mean(dim=('lat','lon'))<255*max_cloud_proba, drop=True) # sentinelhub cloud mask in [0,255.]
+        cube['CLP'] = cube.CLP/255.
     elif hasattr(cube, 'B03') and hasattr(cube, 'B04'):
         cloud_mask = ( (cube.B03>0.175)*(cube.B03>cube.B04) + (cube.B03>0.39) )>0 # cloud detector, reference (Braaten-Cohen-Yang, 2015)
         cube = cube.where(cloud_mask.mean(dim=('lat','lon'))<max_cloud_proba, drop=True)
@@ -58,11 +59,11 @@ def cube2tensor(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=
     """ Convert xcube to tensor and metadata"""
     cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how=nans_how, verbose=verbose, plot_NDWI=plot_NDWI)
     timestamps = [str(t)[:10] for t in cube.time.values] # format yyyy-mm-dd
-    array = np.stack([np.stack([cube.B08.values[t], background_ndwi.values], 0) for t in range(len(timestamps))], 0) # (T,C,H,W)
-    #clp = np.stack([np.stack([cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,C,H,W)
-    x = torch.from_numpy(array)
-    #assert array.shape[1] == self.input_dim
-    return x, timestamps
+    x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values], 0) for t in range(len(timestamps))], 0) # (T,C,H,W)
+    x = torch.from_numpy(x)
+    clp = np.stack([np.stack([cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,1,H,W)
+    clp = torch.from_numpy(clp)
+    return x, clp, timestamps
     
 
 def plot_cube_and_background(cube, background_ndwi, t=0, figsize=(25,5), cmap='grey'):
