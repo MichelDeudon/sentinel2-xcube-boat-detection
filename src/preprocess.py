@@ -109,18 +109,15 @@ def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', la
 
     # save background + imagery and labels
     imsave(os.path.join(data_dir,subdir,'bg_ndwi.png'), img_as_ubyte(background_ndwi.values))
-    df_labels = pd.read_csv(label_filename)
+    df_labels = pd.read_csv(label_filename, usecols=["lat_lon", "timestamp", "count"])
     labeled_files = []
     for t, y in enumerate(label):
         snap_date = str(cube.isel(time=t).time.values)[:10]
         imsave(os.path.join(data_dir,subdir,'img_03_t_{}.png'.format(snap_date)), img_as_ubyte(cube.isel(time=t).B03.values))
         imsave(os.path.join(data_dir,subdir,'img_08_t_{}.png'.format(snap_date)), img_as_ubyte(cube.isel(time=t).B08.values))
         imsave(os.path.join(data_dir,subdir,'img_clp_t_{}.png'.format(snap_date)), img_as_ubyte(cube.isel(time=t).CLP.values))
-        labeled_files.append((os.path.join(data_dir,subdir,'img_08_t_{}.png'.format(snap_date)), y))
-    df1 = pd.DataFrame(labeled_files).rename(columns={0: "file_path", 1: "count"})
-    #for filename in df1['file_path'].values:
-    #    if (filename in df_labels['file_path'].values):
-    #        df_labels = df_labels[df_labels['file_path']!=filename]
+        labeled_files.append((subdir, snap_date, y))
+    df1 = pd.DataFrame(labeled_files).rename(columns={0: "lat_lon", 1: "timestamp",  2: "count"})
     df_labels = df_labels.append(df1, ignore_index=True)
     df_labels.to_csv(label_filename, index=False)
     print('Saved {} labels for {}'.format(len(label), subdir))

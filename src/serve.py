@@ -48,8 +48,10 @@ def coords2counts(model, coords, time_window, radius=5000, time_period='5D', max
     cube = open_cube(cube_config, max_cache_size=2**30)
     x, clp, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
     # Detect and count boats!
-    heatmaps, counts = model.chip_and_count(x, clp=clp, ##### NEW!
-                                            water_ndwi=0.5, filter_peaks=True, downsample=False,
+    heatmaps, counts = model.chip_and_count(x, clp=None, ##### NEW!
+                                            water_ndwi=-1.0, #####
+                                            filter_peaks=True, #####
+                                            downsample=True, #####
                                            plot_heatmap=True, timestamps=timestamps, max_frames=6, plot_indicator=True)
 
     ##### Save AOI, timestamps, counts to geodB
@@ -154,9 +156,12 @@ def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_m
     for query in boat_traffic.keys():
         timestamps, counts = [], []
         n_windows = len(boat_traffic[query])
+        
+        print('\n', query)
         for traffic in boat_traffic[query]:
             timestamps += list(traffic.keys())
             counts += list(traffic.values())
+            print('{} - {} >> {:.2f}'.format(list(traffic.keys())[0], list(traffic.keys())[-1], np.mean(list(traffic.values()))))
             
         if week_day is not None:
             counts, timestamps = filter_by_weekday(counts, timestamps, week_day=week_day) # filter time series by week day

@@ -67,15 +67,16 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
             timestamps = df_labels_groupby.get_group(name = subdir)["timestamp"] # if count is negative, will not appear in the group
             for timestamp in timestamps:
                 img_timestamp = []
-                #for band in band_list: #img_08, bg_ndwi
-                #    if band.startswith('img_'):
-                #        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band +  "*.png")))
-                #    else:
-                #        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band + "*t_" + timestamp + "*.png"))) 
-                img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, 'img_08_t_' + timestamp + ".png")))
-                img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, "bg_ndwi.png")))  #img_08, bg_ndwi 
+                for band in band_list: #img_08, bg_ndwi
+                    if band.startswith('img_'):
+                        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band + "*t_" + timestamp + "*.png"))) 
+                    else:
+                        img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band +  "*.png")))
+                
                 if len(img_timestamp)==len(band_list): ##### sanity check (BUG for certain coords / chips)
-                    img_paths.append(img_timestamp)            
+                    img_paths.append(img_timestamp)
+                else:
+                    print('Assertion error', len(img_timestamp),len(band_list),img_timestamp)
                     
         return np.array(img_paths)
     

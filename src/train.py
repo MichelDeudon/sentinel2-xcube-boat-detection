@@ -49,7 +49,7 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
     for data in train_dataloader:
         model = model.train()
         optimizer.zero_grad()  # zero the parameter gradients
-        metrics = model.get_loss(data['img'].float(), y=data['y'].float(), ld=ld, water_ndwi=water_ndwi)
+        metrics = model.get_loss(data['img'].float(), y=data['y'].float().to(device), ld=ld, water_ndwi=water_ndwi)
         metrics['loss'].backward() # backprop
         optimizer.step()
         train_clf_error += metrics['clf_error'].detach().cpu().numpy()*len(data['img'])/len(train_dataloader.dataset)
@@ -62,7 +62,7 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
     for data in val_dataloader:
         model = model.eval()
         optimizer.zero_grad()  # zero the parameter gradients
-        metrics = model.get_loss(data['img'].float(), y=data['y'].float(), ld=ld, water_ndwi=water_ndwi)
+        metrics = model.get_loss(data['img'].float(), y=data['y'].float().to(device), ld=ld, water_ndwi=water_ndwi)
         val_clf_error += metrics['clf_error'].detach().cpu().numpy()*len(data['img'])/len(val_dataloader.dataset)
         val_reg_error += metrics['reg_error'].detach().cpu().numpy()*len(data['img'])/len(val_dataloader.dataset)
         val_accuracy += metrics['accuracy']*len(data['img'])/len(val_dataloader.dataset)
