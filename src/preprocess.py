@@ -245,7 +245,7 @@ def generate_landwater_mask(cube:Dataset, threshold_quantile=0.625, plot=True):
     binary_bg_VV = bg_VV.where(bg_VV > threshold_VV).fillna(1).where(bg_VV <= threshold_VV).fillna(0)
     binary_bg = binary_bg_VH * binary_bg_VV
     if plot:
-        plt.figure(figsize=(20, 10))
+        plt.figure(figsize=(20, 5))
         plt.subplot(1, 3, 1)
         binary_bg_VH.plot.imshow()
         plt.title("binary_bg_VH")
