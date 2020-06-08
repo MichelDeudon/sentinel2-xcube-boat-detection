@@ -117,13 +117,11 @@ class Model(nn.Module):
         self.to(self.device)
         
         
-    def forward(self, x, clp=None, water_ndwi=0.4, filter_peaks=False, downsample=False):
+    def forward(self, x, filter_peaks=False, downsample=False):
         '''
         Predict boat presence (or counts) in an image x
         Args:
-            x: tensor (B, C_in, H, W), aerial images
-            clp: tensor (B, 1, H, W), cloud mask probability in [0,1]
-            water_ndwi: float in [-1,1] for water detection. -1. will apply no masking.
+            x: tensor (B, C_in, H, W), satellite images [NIR, BG_NDWI, CLP]
             filter_peaks: bool,
             downsample: bool
         Returns:
@@ -149,25 +147,10 @@ class Model(nn.Module):
         p_hat = torch.max(torch.max(p_hat,dim=-1).values ,dim=-1).values # (B, 1) tight lower bound on probability there is a boat in full image
         density_map = torch.sum(torch.cat([float(k)*z[:,k:k+1] for k in range(z.size(1))],1), dim=1, keepdim=True) # density map (counts) pool_size res (10pix = 100m)   
         
-        # no water, no boat traffic
-        if channels > 1 and water_ndwi > -1.0: # water background post process
-            proba_water = 1.0*(x[:,1:2]<0.5*(-water_ndwi+1)) # background, negative, rescaled ndwi >> mask density_heatmap # (B, 1, H, W),
-            if downsample is True:
-                proba_water = self.max_pool(proba_water)
-            density_map = proba_water*density_map # density map (counts) pool_size res (10pix = 100m)
-            
-        # clouds != boats
-        if clp is not None:
-            clp = clp.float().to(self.device)
-            if downsample is True:
-                clp = self.max_pool(clp)
-            clp = 1.0*(clp>0.10) ###### cloud_proba binary threshold
-            density_map = (1-clp)*density_map
-            
         # geoloc boat
         if filter_peaks is True: # local maxima post process
             if downsample is True:
-                density_map = filter_maxima(density_map, min_distance=2, threshold_abs=0.25, threshold_rel=0.9, pad=False)
+                density_map = filter_maxima(density_map, min_distance=2, threshold_abs=0.25, threshold_rel=1.0, pad=False)
             else:
                 ##### ADD blur (gaussian kernel), then clip (0,1)
                 density_map = filter_maxima(density_map, min_distance=self.pool_size+1, threshold_abs=0.15, threshold_rel=1.0, pad=True) ##### add threshold_abs, threshold_rel to forward parameters
@@ -175,13 +158,12 @@ class Model(nn.Module):
         y_hat = torch.sum(density_map, (2,3)) # estimate number of boats in image (where there are boats)
         return pixel_embedding, density_map, p_hat, y_hat
     
-    def get_loss(self, x, y, water_ndwi=0.4, filter_peaks=False, downsample=True, ld=0.5):
+    def get_loss(self, x, y, filter_peaks=False, downsample=True, ld=0.5):
         '''
         Computes loss function for classification / regression (params: low-dim projection W + n_clusters centroids)
         Args:
             x: tensor (B, C, H, W), input images
             y: tensor (B, 1), boat counts or presence
-            water_ndwi: float in [-1,1] for water detection.
             filter_peaks: bool,
             downsample: bool
             ld: float in [0,1], coef for count loss (SmoothL1) vs. presence loss (BCE)
@@ -190,7 +172,7 @@ class Model(nn.Module):
         '''
         
         x = x.to(self.device)
-        x_hidden, density_map, p_hat, y_hat = self.forward(x, water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)  # (B,1,n_filters,H,W)
+        x_hidden, density_map, p_hat, y_hat = self.forward(x, filter_peaks=filter_peaks, downsample=downsample)  # (B,1,n_filters,H,W)
         
         # compute loss
         p = 1.0*(y>0)
@@ -224,12 +206,10 @@ class Model(nn.Module):
             self.load_state_dict(torch.load(checkpoint_file))
             
             
-    def chip_and_count(self, x, clp=None, water_ndwi=0.5, filter_peaks=True, downsample=False, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False):
+    def chip_and_count(self, x, filter_peaks=True, downsample=False, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False):
         """ Chip an image, predict presence for each chip and return heatmap of presence and total counts.
         Args:
             x: tensor (N, C_in, H, W)
-            clp: tensor (N, 1, H, W), cloud coverage probability masks
-            water_ndwi: float in [-1,1] for water detection.
             filter_peaks: bool,
             downsample: bool,
             plot_heatmap:
@@ -249,7 +229,7 @@ class Model(nn.Module):
             
         n_frames, channels, height, width = x.shape
         for t in range(n_frames):
-            _, density_map, _, y_hat = self.forward(x[t:t+1].float(), clp=clp, water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)
+            _, density_map, _, y_hat = self.forward(x[t:t+1].float(), filter_peaks=filter_peaks, downsample=downsample)
             density_map = density_map.detach().cpu().numpy()[0][0] # (H, W)
             y_hat = y_hat.detach().cpu().numpy()[0] # (1,)
             heatmaps.append(density_map)

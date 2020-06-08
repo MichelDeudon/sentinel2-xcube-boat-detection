@@ -42,21 +42,21 @@ def test_model():
 
     hidden_dim, pool_size, n_max = 16, 10, 1
     model = Model(input_dim=input_dim, hidden_dim=hidden_dim, kernel_size=3, pool_size=pool_size, n_max=n_max, pad=True, device='cpu', version='0.0.2')
-    pixel_embedding, density_map, p_hat, y_hat = model(x, water_ndwi=-1.0, downsample=True)
+    pixel_embedding, density_map, p_hat, y_hat = model(x, downsample=True)
     assert pixel_embedding.shape == (batch_size, hidden_dim, H, W) # pixel embedding
     assert density_map.shape == (batch_size, 1, H//pool_size, W//pool_size) # density map
     assert p_hat.shape == y.shape # proba boat presence
     assert y_hat.shape == y.shape # boat counts (expectation)
 
-    metrics = model.get_loss(x, y, ld=0.2, water_ndwi=-1.0)
+    metrics = model.get_loss(x, y, ld=0.2)
     for metric in ['loss', 'clf_error', 'reg_error', 'accuracy', 'precision', 'recall', 'f1']:
         assert metric in metrics.keys()
 
-    heatmaps, counts = model.chip_and_count(x, water_ndwi=0.5, downsample=True)
+    heatmaps, counts = model.chip_and_count(x, downsample=True)
     assert len(heatmaps) == batch_size and heatmaps[0].shape == (H//pool_size, W//pool_size)
     assert len(counts) == batch_size and isinstance(counts[0], float)
     
-    heatmaps, counts = model.chip_and_count(x, water_ndwi=0.5, downsample=False)
+    heatmaps, counts = model.chip_and_count(x, downsample=False)
     assert len(heatmaps) == batch_size and heatmaps[0].shape == (H, W)
 
 

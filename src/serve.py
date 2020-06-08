@@ -14,14 +14,14 @@ from src.model import Model
 
 
 
-def load_model(checkpoint_dir="/home/jovyan/checkpoints", version="0.0.4"):
+def load_model(checkpoint_dir="/home/jovyan/checkpoints", version="0.1.0"):
     """
     Args:
         checkpoint_dir: str, path to checkpoint directory
         version: str, example '0.0.1'
     """
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu' # gpu support
-    model = Model(input_dim=2, hidden_dim=16, kernel_size=3, device=device, version=version)
+    model = Model(input_dim=3, hidden_dim=32, kernel_size=3, device=device, version=version) #####
     checkpoint_file = os.path.join(checkpoint_dir, model.folder, 'model.pth')
     model.load_checkpoint(checkpoint_file=checkpoint_file)
     model = model.eval()
@@ -46,12 +46,9 @@ def coords2counts(model, coords, time_window, radius=5000, time_period='5D', max
     bbox = bbox_from_point(lat=lat, lon=lon, r=radius) # WGS84 coordinates
     cube_config = CubeConfig(dataset_name='S2L1C', band_names=['B03', 'B08', 'CLP'], tile_size=[2*radius//10, 2*radius//10], geometry=bbox, time_range=time_window, time_period=time_period,)
     cube = open_cube(cube_config, max_cache_size=2**30)
-    x, clp, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
+    x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
     # Detect and count boats!
-    heatmaps, counts = model.chip_and_count(x, clp=None, ##### NEW!
-                                            water_ndwi=-1.0, #####
-                                            filter_peaks=True, #####
-                                            downsample=True, #####
+    heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True,
                                            plot_heatmap=True, timestamps=timestamps, max_frames=6, plot_indicator=True)
 
     ##### Save AOI, timestamps, counts to geodB
@@ -61,7 +58,7 @@ def coords2counts(model, coords, time_window, radius=5000, time_period='5D', max
     return traffic
 
 
-def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], data_dir="/home/jovyan/data", checkpoint_dir="/home/jovyan/checkpoints", version="0.0.4", radius=5000, time_period='5D', max_cloud_proba=0.2):
+def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], data_dir="/home/jovyan/data", checkpoint_dir="/home/jovyan/checkpoints", version="0.1.0", radius=5000, time_period='5D', max_cloud_proba=0.2):
     '''
     Args:
         interest: str, 'Straits' or 'Ports'
@@ -174,8 +171,10 @@ def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_m
         ### compute "delta" between 2019-2020 + statistics over time windows (median, std, early/end trend, etc.)
 
         # find idx for 2019/2020 split
-        idx_2019, idx_2020 = -1, -1
+        idx_2018, idx_2019, idx_2020 = -1, -1, -1
         for idx, t in enumerate(timestamps):
+            if t.startswith('2018') and idx_2018<0:
+                idx_2018 = idx
             if t.startswith('2019') and idx_2019<0:
                 idx_2019 = idx
             if t.startswith('2020') and idx_2020<0:
@@ -188,16 +187,15 @@ def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_m
         else: # month + date/31
             timestamps = [float(t.split('-')[-2]) + float(t.split('-')[-1])/31.0 for t in timestamps] # month only (float)
             
-
+        
         plt.figure(1, figsize=(30,5))
         plt.subplot(121)
-        plt.plot(timestamps[idx_2019:idx_2020], counts[idx_2019:idx_2020], color='gray', marker='o', linestyle='--', label='2019')
+        #plt.plot(timestamps[idx_2018:idx_2019], counts[idx_2018:idx_2019], color='gray', marker="1", linestyle='--', label='2018')
+        plt.plot(timestamps[idx_2019:idx_2020], counts[idx_2019:idx_2020], color='gray', marker='o', linestyle='-.', label='2019')
         plt.plot(timestamps[idx_2020:], counts[idx_2020:], color='black', marker='+', label='2020')
         plt.legend()
         plt.ylim(bottom=0)
-        #plt.xticks(list(range(len(timestamps1))), timestamps1, rotation=45)
         plt.title(query)
-        #plt.title(query+'\n Delta 2019/2020: {:.1f}%'.format(delta))
         plt.show()
 
         
@@ -208,5 +206,5 @@ if __name__ == '__main__':
     ##### Import argparse --> CLI
     ##### Automate analysis for AOI + time window  
     
-    boat_traffic = scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], version="0.0.4", radius=5000, time_period='5D', max_cloud_proba=0.2)
+    boat_traffic = scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], version="0.1.0", radius=5000, time_period='5D', max_cloud_proba=0.2)
     analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0)

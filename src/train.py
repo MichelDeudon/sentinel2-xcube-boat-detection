@@ -9,7 +9,7 @@ import torch.optim as optim
 from src.model import Model
 
 
-def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, ld=0.3, water_ndwi=-1.0, n_epochs=10, lr=0.005, lr_step=2, lr_decay=0.95, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1, version=0.0):
+def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, ld=0.3, n_epochs=10, lr=0.005, lr_step=2, lr_decay=0.95, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1, version=0.0):
   """
   Trains a neural network for boat traffic detection.
   Args:
@@ -19,8 +19,8 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
       kernel_size: int, kernel size
       pool_size: int, pool size (chunk). Default 10 pixels (1 ha = 100m x 100m).
       n_max: int, maximum number of boats per chunks. Default 1.
+      drop_proba: float, 2D dropout probability.
       ld: float, coef for smooth count loss (sum, SmoothL1) vs. presence loss (max, BCE)
-      water_ndwi: float in [-1,1] for water detection. -1. will apply no masking.
       n_epochs: int, number of epochs
       lr, lr_step, lr_decay: float and int for the learning rate
       device: str, 'cpu' or 'gpu'
@@ -32,7 +32,8 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
 
   np.random.seed(seed)  # seed RNGs for reproducibility
   torch.manual_seed(seed)
-
+  torch.backends.cudnn.deterministic = True
+    
   model = Model(input_dim=input_dim, hidden_dim=hidden_dim, kernel_size=kernel_size, pool_size=pool_size, n_max=n_max, drop_proba=drop_proba, device=device, version=version) 
   checkpoint_dir_run = os.path.join(checkpoints_dir, model.folder)
   os.makedirs(checkpoint_dir_run, exist_ok=True)
@@ -49,7 +50,7 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
     for data in train_dataloader:
         model = model.train()
         optimizer.zero_grad()  # zero the parameter gradients
-        metrics = model.get_loss(data['img'].float(), y=data['y'].float().to(device), ld=ld, water_ndwi=water_ndwi)
+        metrics = model.get_loss(data['img'].float(), y=data['y'].float().to(device), ld=ld)
         metrics['loss'].backward() # backprop
         optimizer.step()
         train_clf_error += metrics['clf_error'].detach().cpu().numpy()*len(data['img'])/len(train_dataloader.dataset)
@@ -62,7 +63,7 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
     for data in val_dataloader:
         model = model.eval()
         optimizer.zero_grad()  # zero the parameter gradients
-        metrics = model.get_loss(data['img'].float(), y=data['y'].float().to(device), ld=ld, water_ndwi=water_ndwi)
+        metrics = model.get_loss(data['img'].float(), y=data['y'].float().to(device), ld=ld)
         val_clf_error += metrics['clf_error'].detach().cpu().numpy()*len(data['img'])/len(val_dataloader.dataset)
         val_reg_error += metrics['reg_error'].detach().cpu().numpy()*len(data['img'])/len(val_dataloader.dataset)
         val_accuracy += metrics['accuracy']*len(data['img'])/len(val_dataloader.dataset)
@@ -85,7 +86,7 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
   return best_metrics
 
 
-def get_failures_or_success(model, dataset, hidden_channel=0, success=None, filter_on=None, plot_heatmap=False, water_ndwi=0.5, filter_peaks=True, downsample=False):
+def get_failures_or_success(model, dataset, hidden_channel=0, success=None, filter_on=None, plot_heatmap=False, filter_peaks=True, downsample=False):
     """ Run model on dataset and display success or failures. Scatter plot predicted counts vs. true counts.
     Args:
         model: pytorch Model
@@ -93,7 +94,6 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=None, filt
         hidden_channel: int, id of hidden channel to display
         success: bool. if True will return success, otherwise failures. 
         filter_on: int, class to filter results. Default, None.
-        water_ndwi: float in [-1,1] for water detection.
         filter_peaks: bool,
         downsample: bool,
         plot_heatmap: bool
@@ -114,7 +114,7 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=None, filt
         if filter_on is None or (int(y)==filter_on):
             
             images = imset['img'].float().reshape(1, channels, height, width)
-            x, density_map, p_hat, y_hat = model(images, water_ndwi=water_ndwi, filter_peaks=filter_peaks, downsample=downsample)            
+            x, density_map, p_hat, y_hat = model(images, filter_peaks=filter_peaks, downsample=downsample)            
             x = x.detach().cpu().numpy()[0]
             heatmap = density_map.detach().cpu().numpy()[0][0] # H,W heatmap
             y_hat = float(y_hat.detach().cpu().numpy()[0])
