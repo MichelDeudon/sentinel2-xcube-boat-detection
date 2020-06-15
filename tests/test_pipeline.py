@@ -2,7 +2,7 @@
 
 import os
 import sys
-# sys.path.insert(0,os.path.dirname('src/'))
+sys.path.insert(0,os.path.dirname('src/'))
 
 
 def test_imports():
@@ -96,7 +96,6 @@ def test_preprocess():
 
     cube, background_ndwi = preprocess(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=False)
     assert hasattr(cube, "NDWI")
-    # assert hasattr(background_ndwi, "NDWI")
     assert background_ndwi.name == "NDWI"
     assert background_ndwi.data.shape == (100, 100)
 
