@@ -10,36 +10,20 @@ Github repository to detect and counts boat traffic 🚢🛳️🛥️ in [Senti
 - Run ```pip install -r requirements.txt```
 - TODO: Edit Docker image.
 
-![S2-Artwork](pics/EU-Ports/Venezia/Artwork_by_Elena_Aversa.jpg)
-
 ## 🛰️ Pipeline
 
 ### 1. 📷 Annotate 1 squared km chips with boat counts.
 
-Download [Sentinel 2](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) L1C products (bands B03, B08, [CLP](https://github.com/sentinel-hub/sentinel2-cloud-detector)) from [Sentinel Hub](https://www.sentinel-hub.com/) via [xcube-sh](https://github.com/dcs4cop/xcube-sh). Remove nans and cloudy images with CLP. Compute NDWI. Background NDWI estimation by multi frame fusion (max over time). BG NDWI can be used to obtain a water/land mask M after thresholding. 
-
-Annotate chips with [superintendent](https://github.com/janfreyberg/superintendent) and [scikit-image](https://scikit-image.org/)
-
-![Inputs](pics/S2-Boat-Density/inputs.png)
+Download [Sentinel 2](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) L1C products (bands B03, B08, [CLP](https://github.com/sentinel-hub/sentinel2-cloud-detector)) from [Sentinel Hub](https://www.sentinel-hub.com/) via [xcube-sh](https://github.com/dcs4cop/xcube-sh). Remove nans and cloudy images with CLP. Compute NDWI. Background NDWI estimation by fusion over time (max).
 
 ### 2. 🔭 Learn to detect and count boat traffic
 
-- Input (2 channels): NIR Band (foreground+background) and Background NDWI (background)
-- Pytorch model: Residual Network (pixel embedding) + MaxPool2D (patch encoding) + 2-layer 1x1 conv2D (patch latent code Z) + Clf/Reg prediction.
-
-![Model](pics/S2-Boat-Density/Classifier.png)
+- Input (1, 2 or 3 channels): NIR, Background NDWI and CLP.
+- Model: Residual Block (pixel embed) + MaxPool2D (patch encode) + 2-layer 1x1 conv2D (patch code Z) + Clf/Reg prediction.
 
 ### 3. 🗺️ Deploy
 
-Deploy model on large AOI (Ports, Straits, MPA). Example below for the Dardanelles Strait (25 squared km).
-
-![Dardanelles heatmaps](pics/EU-Straits/Dardanelles/Dardanelles_heatmaps_2020.png)
-![Dardanelles activity](pics/EU-Straits/Dardanelles/Dardanelles_traffic_2020.png)
-
-
-## TODO List:
-
-###### See Annexe.
+Deploy model on large AOI (Ports, Straits, MPA), e.g. the Dardanelles Strait (25 squared km).
 
 ## Press
 
