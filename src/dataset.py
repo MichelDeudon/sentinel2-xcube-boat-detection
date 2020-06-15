@@ -28,7 +28,6 @@ def plot_geoloc(train_coordinates, val_coordinates=None):
         df.insert(2, "focus", [0]*len(train_coordinates)+[1]*len(val_coordinates), True)
     else:
         df = pd.DataFrame(train_coordinates, columns=['lat', 'lon'])
-        
     mapbox_access_token = os.environ['mapbox_access_token'] # Mapbox access token
     px.set_mapbox_access_token(mapbox_access_token)
     if val_coordinates is not None:
@@ -36,7 +35,6 @@ def plot_geoloc(train_coordinates, val_coordinates=None):
     else:
         fig = px.scatter_mapbox(df, lon="lon", lat="lat", zoom=1, color_continuous_scale=px.colors.diverging.Picnic)
     return fig
-
 
 
 def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.csv', band_list=['img_ndwi'], test_size=0.1, plot_coords=True,
@@ -53,7 +51,6 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
         fig: mapbox plot of coordinates if plot_coords is True. Otherwise, returns None.
     """
     
-  
     df_labels = pd.read_csv(labels_filename, dtype={'count': float})
     df_labels = df_labels[df_labels["count"] >= 0.0] # keep positive counts
     df_labels_groupby = df_labels.groupby("lat_lon")
@@ -67,17 +64,15 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
             timestamps = df_labels_groupby.get_group(name = subdir)["timestamp"] # if count is negative, will not appear in the group
             for timestamp in timestamps:
                 img_timestamp = []
-                for band in band_list: #img_08, bg_ndwi
+                for band in band_list: # img_08, bg_ndwi, img_clp
                     if band.startswith('img_'):
                         img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band + "*t_" + timestamp + "*.png"))) 
                     else:
                         img_timestamp.extend(glob.glob(os.path.join(data_dir, subdir, band +  "*.png")))
-                
                 if len(img_timestamp)==len(band_list): ##### sanity check (BUG for certain coords / chips)
                     img_paths.append(img_timestamp)
                 else:
                     print('Assertion error', len(img_timestamp),len(band_list),img_timestamp)
-                    
         return np.array(img_paths)
     
     train_img_paths = get_img_paths(train_coordinates) # get list of filenames
@@ -116,7 +111,6 @@ class S2_Dataset(Dataset):
         self.img_paths = imset_dir
         self.augment = augment
         self.crop_size = crop_size # if self.augment is True
-        self.n_loc = len(np.unique(['/'.join(filenames[0].split('/')[:-1]) for filenames in self.img_paths]))
         self.df_labels = pd.read_csv(labels_filename)
                     
     def __len__(self):
@@ -156,7 +150,7 @@ class S2_Dataset(Dataset):
         return imset
 
     
-def plot_dataset(dataset, n_frames=14, n_rows=2, cmap='gray'):
+def plot_dataset(dataset, n_frames=14, n_rows=2):
     """ Plot dataset images. """
     fig = plt.figure(figsize=(16,5))
     for t in range(n_frames):
@@ -164,7 +158,7 @@ def plot_dataset(dataset, n_frames=14, n_rows=2, cmap='gray'):
         imset = dataset[t]
         x = imset['img']
         y = int(imset['y'])
-        plt.imshow(-x[0], cmap=cmap)
+        plt.imshow(-x[0], cmap='RdYlBu') # NIR band
         plt.xticks([])
         plt.yticks([])
         plt.title('Label {}'.format(y))

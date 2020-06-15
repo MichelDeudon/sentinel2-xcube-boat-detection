@@ -221,7 +221,7 @@ class Model(nn.Module):
             counts: list of int
         """
 
-        # memory overload, chunk data by time
+        # process data by time (avoid memory overflow)
         heatmaps = []
         counts = []        
         if timestamps is None:

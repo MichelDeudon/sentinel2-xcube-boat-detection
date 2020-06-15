@@ -8,14 +8,14 @@ from collections import OrderedDict
 from scipy.signal import medfilt
 from xcube_sh.cube import open_cube
 
-from src.GIS_utils import bbox_from_point
-from src.config import CubeConfig
-from src.preprocess import cube2tensor
-from src.model import Model
+from GIS_utils import bbox_from_point
+from config import CubeConfig
+from preprocess import cube2tensor
+from model import Model
 
 
 
-def load_model(checkpoint_dir="/home/jovyan/checkpoints", version="0.1.0"):
+def load_model(checkpoint_dir="../factory", version="0.1.0"):
     """
     Args:
         checkpoint_dir: str, path to checkpoint directory
@@ -59,7 +59,7 @@ def coords2counts(model, coords, time_window, radius=5000, time_period='5D', max
     return traffic
 
 
-def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], data_dir="/home/jovyan/data", checkpoint_dir="/home/jovyan/checkpoints", version="0.1.0", radius=5000, time_period='5D', max_cloud_proba=0.2):
+def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], data_dir="/home/jovyan/data", checkpoint_dir="../factory", version="0.1.0", radius=5000, time_period='5D', max_cloud_proba=0.2):
     '''
     Args:
         interest: str, 'Straits' or 'Ports'

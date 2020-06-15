@@ -1,4 +1,4 @@
-""" Author: Michel Deudon. Credits OSMNX. """
+""" Credits OSMNX. """
 
 import math
 import geopandas as gpd

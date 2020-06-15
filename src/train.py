@@ -6,7 +6,7 @@ from tqdm.notebook import tqdm as tqdm
 import torch
 import torch.optim as optim
 
-from src.model import Model
+from model import Model
 
 
 def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_size=3, pool_size=10, n_max=1, drop_proba=0.1, ld=0.3, n_epochs=10, lr=0.005, lr_step=2, lr_decay=0.95, device='cpu', checkpoints_dir='./checkpoints', seed=42, verbose=1, version=0.0):
