@@ -164,7 +164,7 @@ def plot_dataset(dataset, n_frames=14, n_rows=2, cmap='gray'):
         imset = dataset[t]
         x = imset['img']
         y = int(imset['y'])
-        plt.imshow(x[0], cmap=cmap)
+        plt.imshow(-x[0], cmap=cmap)
         plt.xticks([])
         plt.yticks([])
         plt.title('Label {}'.format(y))

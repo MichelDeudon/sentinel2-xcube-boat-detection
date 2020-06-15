@@ -1,11 +1,12 @@
 import os
 import json
 import torch
+import datetime
 import numpy as np
 import matplotlib.pyplot as plt
+from collections import OrderedDict
 from scipy.signal import medfilt
 from xcube_sh.cube import open_cube
-import datetime
 
 from src.GIS_utils import bbox_from_point
 from src.config import CubeConfig
@@ -52,7 +53,7 @@ def coords2counts(model, coords, time_window, radius=5000, time_period='5D', max
                                            plot_heatmap=True, timestamps=timestamps, max_frames=6, plot_indicator=True)
 
     ##### Save AOI, timestamps, counts to geodB
-    traffic = {}
+    traffic = OrderedDict()
     for timestamp, count in zip(timestamps, counts):
         traffic[timestamp] = float(count)
     return traffic
@@ -84,21 +85,18 @@ def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2
         query = '{}_lat={}_lon={}_r={}_v={}'.format(aoi_name.lower(), coords[0], coords[1], radius, version) ### Compare 2019/2020 counts
         print(query.capitalize())
         output_filename = os.path.join(data_dir, 'outputs', '{}.json'.format(query))
-        if not os.path.exists(output_filename):
-            for time_window in time_windows:
-                traffic = coords2counts(model=model, coords=coords, radius=radius, time_window=time_window, time_period=time_period, max_cloud_proba=max_cloud_proba) # configure, download, preprocess cube
-                if query in boat_traffic:
-                    boat_traffic[query].append(traffic)
-                else:
-                    boat_traffic[query] = [traffic]
-
-            if query in boat_traffic:
-                with open(output_filename, 'w+') as f:
-                    json.dump(boat_traffic[query], f, sort_keys=True, indent=4)
-
-        else:
+        if os.path.exists(output_filename):
             with open(output_filename, 'r') as f:
-                boat_traffic[query] = json.load(f)
+                boat_traffic[query] = json.load(f) # read file
+        else:
+            boat_traffic[query] = OrderedDict()
+            
+        for time_window in time_windows:
+            traffic = coords2counts(model=model, coords=coords, radius=radius, time_window=time_window, time_period=time_period, max_cloud_proba=max_cloud_proba) # configure, download, preprocess cube
+            boat_traffic[query] = {**boat_traffic[query], **traffic} # merge dict
+        with open(output_filename, 'w+') as f:
+            json.dump(boat_traffic[query], f, sort_keys=True, indent=4) # write file
+            
     return boat_traffic
      
     
@@ -141,7 +139,7 @@ def filter_by_weekday(counts, timestamps, week_day=0):
     return new_counts, new_timestamps
     
     
-def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_month=True):
+def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_month=True, delta=[ ['2019-01-01','2019-06-01'], ['2020-01-01','2020-06-01']]):
     '''
     Args:
         boat_traffic: dict, AOI and traffic
@@ -152,24 +150,26 @@ def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_m
     
     for query in boat_traffic.keys():
         timestamps, counts = [], []
-        n_windows = len(boat_traffic[query])
-        
-        print('\n', query)
-        for traffic in boat_traffic[query]:
-            timestamps += list(traffic.keys())
-            counts += list(traffic.values())
-            print('{} - {} >> {:.2f}'.format(list(traffic.keys())[0], list(traffic.keys())[-1], np.mean(list(traffic.values()))))
-            
+        traffic = boat_traffic[query]
+        timestamps += list(traffic.keys())
+        counts += list(traffic.values())
         if week_day is not None:
             counts, timestamps = filter_by_weekday(counts, timestamps, week_day=week_day) # filter time series by week day
-            
         counts = list(medfilt(counts, kernel_size=kernel_size)) # 1D median filtering to reduce noise
-        
         if aggregate_by_month:
             counts, timestamps = aggregate_counts_by_months(counts, timestamps) # aggregate by month or time window (trimester)
             
         ### compute "delta" between 2019-2020 + statistics over time windows (median, std, early/end trend, etc.)
-
+        q1, q2 = [], []
+        for timestamp, count in zip(timestamps, counts):
+            if timestamp >= delta[0][0] and timestamp <= delta[0][1]:
+                q1.append(count)
+            if timestamp >= delta[1][0] and timestamp <= delta[1][1]:
+                q2.append(count)
+        q1, q2 = np.mean(q1), np.mean(q2)
+        print('{} \n Delta {} - {} / {} - {}: {:.2f}'.format(query, delta[0][0], delta[0][1], delta[1][0], delta[1][1], 100*(q2-q1)/q1))
+        
+        
         # find idx for 2019/2020 split
         idx_2018, idx_2019, idx_2020 = -1, -1, -1
         for idx, t in enumerate(timestamps):

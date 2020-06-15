@@ -117,7 +117,7 @@ class Model(nn.Module):
         self.to(self.device)
         
         
-    def forward(self, x, filter_peaks=False, downsample=False):
+    def forward(self, x, filter_peaks=False, downsample=True):
         '''
         Predict boat presence (or counts) in an image x
         Args:
@@ -184,7 +184,7 @@ class Model(nn.Module):
         
         # metrics for boat presence
         p_ = 1.0*(p_hat>0.5)
-        eps = 0.0001
+        eps = 0.000000001
         accuracy = (torch.mean(1.0*(p_==p)).detach()).cpu().numpy()
         precision = ((torch.sum(p_*p)+eps)/(torch.sum(p_)+eps)).detach().cpu().numpy()
         recall = ((torch.sum(p_*p)+eps)/(torch.sum(p)+eps)).detach().cpu().numpy()

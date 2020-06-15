@@ -86,12 +86,11 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
   return best_metrics
 
 
-def get_failures_or_success(model, dataset, hidden_channel=0, success=None, filter_on=None, plot_heatmap=False, filter_peaks=True, downsample=False):
+def get_failures_or_success(model, dataset, success=None, filter_on=None, plot_heatmap=False, filter_peaks=True, downsample=False):
     """ Run model on dataset and display success or failures. Scatter plot predicted counts vs. true counts.
     Args:
         model: pytorch Model
         dataset: torch.Dataset
-        hidden_channel: int, id of hidden channel to display
         success: bool. if True will return success, otherwise failures. 
         filter_on: int, class to filter results. Default, None.
         filter_peaks: bool,
@@ -110,6 +109,8 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=None, filt
         y = imset['y'].cpu().numpy()
         p = 1.0*(y>0)
         filename = imset['filename']
+        timestamp = filename.split('/')[-1].replace('.png','').split('_t_')[-1]
+        coordinates = filename.split('/')[-2]
         image_titles = []
         if filter_on is None or (int(y)==filter_on):
             
@@ -127,27 +128,26 @@ def get_failures_or_success(model, dataset, hidden_channel=0, success=None, filt
             if plot_heatmap and (success is None or (success and int(np.rint(y_hat)) == int(y)) or (not success and int(np.rint(y_hat)) != int(y)) ):
                 print(filename)
                 relabel_images.append(Path(filename))
-                fig = plt.figure(figsize=(16,5))    
-                plt.subplot(1,3,1)
-                plt.imshow(imset['img'][0], cmap='gray')
-                plt.title('y_true = {}'.format(int(y)))
-                plt.xticks([])
-                plt.yticks([])
+                fig = plt.figure(figsize=(16,5))
+                n_channels = len(imset['img'])
+                for i in range(n_channels):
+                    plt.subplot(1,n_channels+1,i+1)
+                    if i == 0:  # NIR
+                        plt.imshow(-imset['img'][i], cmap='RdYlBu')
+                        plt.title('{} NIR y_true = {}'.format(timestamp, int(y)))
+                    elif i == 1: # BG NDWI
+                        plt.imshow(-imset['img'][i], cmap='RdYlBu',  vmin=-1.)
+                        plt.title('BG NDWI {}'.format(coordinates))
+                    elif i == 2: # CLP
+                        plt.imshow(imset['img'][i]**0.5, cmap='gray', vmin=0., vmax=1.)
+                        plt.title('{} CLP'.format(timestamp))
+                    plt.xticks([])
+                    plt.yticks([])
                 image_titles.append((imset['img'][0], 'y_true = {}'.format(int(y))))
-                plt.subplot(1,3,2)
-                if isinstance(hidden_channel, int):
-                    plt.imshow(x[hidden_channel], cmap='gray')
-                    image_titles.append((x[hidden_channel], 'p_hat = {:.4f}'.format(p_hat)))
-                elif isinstance(hidden_channel, list):
-                    plt.imshow(np.stack([x[c] for c in hidden_channel],-1))
-                    image_titles.append((np.stack([x[c] for c in hidden_channel],-1), 'p_hat = {:.4f}'.format(p_hat)))
 
-                plt.title('p_hat = {:.4f}'.format(p_hat))
-                plt.xticks([])
-                plt.yticks([])
-                plt.subplot(1,3,3)
-                plt.imshow(heatmap, cmap='coolwarm', vmin=0., vmax=1.0)
-                plt.title('y_hat = {:.4f}'.format(y_hat))
+                plt.subplot(1,n_channels+1,n_channels+1)
+                plt.imshow(heatmap, cmap='magma', vmin=0., vmax=1.0)
+                plt.title('p_hat = {:.1f} / y_hat = {:.1f}'.format(p_hat, y_hat))
                 image_titles.append((heatmap, 'y_hat = {:.4f}'.format(y_hat)))
                 plt.xticks([])
                 plt.yticks([])

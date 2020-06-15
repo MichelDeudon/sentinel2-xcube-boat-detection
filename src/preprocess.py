@@ -59,11 +59,8 @@ def cube2tensor(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=
     """ Convert xcube to tensor and metadata"""
     cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how=nans_how, verbose=verbose, plot_NDWI=plot_NDWI)
     timestamps = [str(t)[:10] for t in cube.time.values] # format yyyy-mm-dd
-    #x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values], 0) for t in range(len(timestamps))], 0) # (T,C,H,W)
-    x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values, cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,C,H,W)   #####
+    x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values, cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,C,H,W)
     x = torch.from_numpy(x)
-    #clp = np.stack([np.stack([cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,1,H,W)
-    #clp = torch.from_numpy(clp)
     return x, timestamps
     
 
@@ -75,16 +72,58 @@ def plot_cube_and_background(cube, background_ndwi, t=0, figsize=(25,5), cmap='g
         t: int, time indexé
     """
     import matplotlib.pyplot as plt
-    plt.figure(figsize=figsize)
-
-    plt.subplot(1,3,1)
-    cube.B08.isel(time=t).plot(cmap=cmap)
-    plt.subplot(1,3,2)
-    cube.CLP.isel(time=t).plot(cmap=cmap)
-    plt.subplot(1,3,3)
-    background_ndwi.plot(cmap=cmap)
-    plt.show()
+    from src.model import Model
     
+    # load pretrained model
+    model = Model(input_dim=3, hidden_dim=32, kernel_size=3, pool_size=10, n_max=1, device='cuda:0', version='0.1.0')
+    checkpoint_dir = "/home/jovyan/checkpoints"
+    checkpoint_file = os.path.join(checkpoint_dir, model.folder, 'model.pth')
+    model.load_checkpoint(checkpoint_file=checkpoint_file)
+    model = model.eval()
+    
+    timestamps = [str(t)[:10] for t in cube.time.values] # format yyyy-mm-dd
+    x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values, cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,C,H,W)
+    x = torch.from_numpy(x)
+    heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True, plot_heatmap=False, plot_indicator=False)
+
+    for t in range(len(timestamps)):
+        fig =  plt.figure(figsize=figsize)
+        plt.subplot(1,3,1)
+        plt.imshow(-x[t][1]**0.5, cmap=cmap)
+        plt.xticks([])
+        plt.yticks([])
+        plt.ylabel('latitude')
+        plt.xlabel('longitude')
+        plt.title('BG NDWI')
+        
+        plt.subplot(1,3,2)
+        plt.imshow(-x[t][0]**0.5, cmap=cmap)
+        plt.xticks([])
+        plt.yticks([])
+        plt.ylabel('latitude')
+        plt.xlabel('longitude')
+        plt.title('{} NIR'.format(timestamps[t]))
+
+
+        #plt.subplot(1,4,3)
+        #plt.imshow(x[t][2]**0.5, cmap='gray', vmin=0., vmax=1.)
+        #plt.xticks([])
+        #plt.yticks([])
+        #plt.ylabel('latitude')
+        #plt.xlabel('longitude')
+        #plt.title('{} CLP'.format(timestamps[t]))
+
+        plt.subplot(1,3,3)
+        #cube.CLP.isel(time=t).plot(cmap='gray')
+        plt.imshow(heatmaps[t]**0.5, cmap='magma')
+        plt.xticks([])
+        plt.yticks([])
+        plt.ylabel('latitude')
+        plt.xlabel('longitude')
+        plt.title('{} Density Map y_hat = {:.1f}'.format(timestamps[t], counts[t]))
+        fig.tight_layout()
+        plt.show()
+
     
 def save_labels(cube, background_ndwi, label, lat_lon, data_dir='data/chips', label_filename='data/labels.csv'):
     """ Save preprocessed imagery and labels to disk.
