@@ -54,7 +54,7 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
     df_labels = pd.read_csv(labels_filename, dtype={'count': float})
     df_labels = df_labels[df_labels["count"] >= 0.0] # keep positive counts
     df_labels_groupby = df_labels.groupby("lat_lon")
-    coordinates = np.array(list(df_labels_groupby.groups.keys()))
+    coordinates = np.array(list(df_labels_groupby.groups.keys()))    
     train_coordinates, val_coordinates = train_test_split(coordinates, test_size=test_size, random_state=seed, shuffle=True) # split train/val coordinates
     print("Found {0} coordinates:{1} train / {2} val".format(len(coordinates), len(train_coordinates), len(val_coordinates)))
     
@@ -90,14 +90,21 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
         if not sys.warnoptions:
             warnings.simplefilter("ignore")
         plt.figure(1, figsize=(20,5))
-        plt.subplot(121)
+        plt.subplot(131)
         df_labels[df_labels['lat_lon'].isin(train_coordinates)]['count'].hist(color='blue')
         plt.xlabel('label')
         plt.ylabel('counts (train)')
-        plt.subplot(122)
+        plt.subplot(132)
         df_labels[df_labels['lat_lon'].isin(val_coordinates)]['count'].hist(color='red')
         plt.xlabel('label')
         plt.ylabel('counts (val)')
+        plt.subplot(133)
+        n_chips_per_coords = [len([filename for filename in os.listdir(data_dir+'/'+coord) if filename.startswith('img_08')]) for coord in os.listdir(data_dir)]
+        n_chips_per_coords = [k for k in n_chips_per_coords if k>0]
+        plt.xlabel('# chips / coordinates')
+        plt.xlabel('counts')
+        plt.hist(n_chips_per_coords, color='black')
+        plt.title('Mean: {:.2f} / Range: [{} {}]'.format(np.mean(n_chips_per_coords), np.min(n_chips_per_coords), np.max(n_chips_per_coords)))
         plt.show()
         
     return train_img_paths, val_img_paths, fig

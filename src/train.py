@@ -115,8 +115,7 @@ def get_failures_or_success(model, dataset, success=None, filter_on=None, plot_h
         if filter_on is None or (int(y)==filter_on):
             
             images = imset['img'].float().reshape(1, channels, height, width)
-            x, density_map, p_hat, y_hat = model(images, filter_peaks=filter_peaks, downsample=downsample, water_NDWI=water_NDWI)            
-            x = x.detach().cpu().numpy()[0]
+            density_map, p_hat, y_hat = model(images, filter_peaks=filter_peaks, downsample=downsample, water_NDWI=water_NDWI)            
             heatmap = density_map.detach().cpu().numpy()[0][0] # H,W heatmap
             y_hat = float(y_hat.detach().cpu().numpy()[0])
             p_hat = float(p_hat.detach().cpu().numpy()[0])

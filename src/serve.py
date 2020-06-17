@@ -30,7 +30,6 @@ def load_model(checkpoint_dir="../factory", version="0.1.1"):
     return model
 
 
-##### Cache results
 def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=0.2):
     '''
     Args:
@@ -47,18 +46,37 @@ def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=
     cube_config = CubeConfig(dataset_name='S2L1C', band_names=['B03', 'B08', 'CLP'], tile_size=[2*radius//10, 2*radius//10], geometry=bbox, time_range=time_window, time_period=time_period,)
     cube = open_cube(cube_config, max_cache_size=2**30)
     x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
-    # Detect and count boats!
-    heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True, water_NDWI=0.4,
-                                           plot_heatmap=True, timestamps=timestamps, max_frames=6, plot_indicator=True)
+    heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True, water_NDWI=0.4, plot_heatmap=True, timestamps=timestamps, plot_indicator=True) # Detect and count boats!
 
-    ##### Save AOI, timestamps, counts to geodB
+    ##### Save AOI, timestamps, counts to geodB. Cache Results.
     traffic = OrderedDict()
     for timestamp, count in zip(timestamps, counts):
         traffic[timestamp] = float(count)
     return traffic
 
 
-def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], data_dir="/home/jovyan/data", checkpoint_dir="../factory", version="0.1.0", time_period='5D', max_cloud_proba=0.2):
+def save_results(boat_traffic_dict, output_filename, model, coords, time_windows, time_period='5D', max_cloud_proba=0.2):
+    '''
+    Args:
+        boat_traffic_dict: dict, traffic in a given AOI
+        output_filename: str, path to output file
+        model: pytorch model
+        coords: list or tuple, lat and lon.
+        time_windows: list of (list or tuple), start and end dates.
+        time_period: str, example '5D'
+        max_cloud_proba: float, max cloud coverage
+    Returns:
+        traffic: dict, timestamps and counts
+    '''
+    for time_window in time_windows:
+        traffic = coords2counts(model, coords, time_window, time_period=time_period, max_cloud_proba=max_cloud_proba) # configure, download, preprocess cube
+        boat_traffic_dict = {**boat_traffic_dict, **traffic} # merge dict
+    with open(output_filename, 'w+') as f:
+        json.dump(boat_traffic_dict, f, sort_keys=True, indent=4) # write file
+
+
+
+def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], data_dir="../data", checkpoint_dir="../factory", version="0.1.0", time_period='5D', max_cloud_proba=0.2, override=False):
     '''
     Args:
         interest: str, 'Straits' or 'Ports'
@@ -68,6 +86,7 @@ def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2
         version: str, example '0.0.1'
         time_period: str, example '5D'
         max_cloud_proba: float, max cloud coverage
+        override: bool, override results
     Returns:
         boat_traffic: dict, AOI and traffic
     '''
@@ -89,12 +108,9 @@ def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2
         else:
             boat_traffic[query] = OrderedDict()
             
-            for time_window in time_windows:
-                traffic = coords2counts(model=model, coords=coords, time_window=time_window, time_period=time_period, max_cloud_proba=max_cloud_proba) # configure, download, preprocess cube
-                boat_traffic[query] = {**boat_traffic[query], **traffic} # merge dict
-            with open(output_filename, 'w+') as f:
-                json.dump(boat_traffic[query], f, sort_keys=True, indent=4) # write file
-
+        if override or not os.path.exists(output_filename):
+            save_results(boat_traffic[query], output_filename, model, coords, time_windows, time_period=time_period, max_cloud_proba=max_cloud_proba)
+            
     return boat_traffic
      
     
@@ -164,8 +180,7 @@ def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_m
         #       new_counts.append(counts_median[i])
         #        new_timestamps.append(t)
         #counts, timestamps = new_counts, new_timestamps
-                
-            
+        
         
         if aggregate_by_month:
             counts, timestamps = aggregate_counts_by_months(counts, timestamps) # aggregate by month or time window (trimester)
@@ -217,6 +232,5 @@ if __name__ == '__main__':
     
     ##### Import argparse --> CLI
     ##### Automate analysis for AOI + time window  
-    
-    boat_traffic = scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], version="0.1.0", time_period='5D', max_cloud_proba=0.2)
-    analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0)
+    boat_traffic = scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], version="0.1.0", time_period='5D', max_cloud_proba=0.2, override=False)
+    analyze_boat_traffic(boat_traffic, kernel_size=1, week_day=0, aggregate_by_month=False)

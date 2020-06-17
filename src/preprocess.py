@@ -90,11 +90,14 @@ def plot_cube_and_background(cube, background_ndwi, t=0, figsize=(25,5)):
     background_ndwi.plot(cmap='coolwarm')
     plt.subplot(1,4,2)
     cube.B08.isel(time=t).plot(cmap='coolwarm')
+    plt.xticks([]); plt.yticks([])
     plt.subplot(1,4,3)
+    plt.xticks([]); plt.yticks([])
     plt.imshow(heatmaps[0], cmap='Reds')
     plt.title('y_hat = {:.1f}'.format(counts[0]))
     plt.subplot(1,4,4)
     cube.CLP.isel(time=t).plot(cmap='gray')
+    plt.xticks([]); plt.yticks([])
     plt.show()
     
     

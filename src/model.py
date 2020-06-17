@@ -20,13 +20,13 @@ def plot_heatmaps(timestamps, x, heatmaps, counts, max_frames=5):
     n_frames = np.min([len(timestamps), max_frames])
     for idx in range(n_frames):
         plt.subplot(2,n_frames,1+idx)
-        plt.imshow((-x[idx][0]), cmap='RdYlBu')
+        plt.imshow((x[idx][0]), cmap='coolwarm')
         plt.title(timestamps[idx])
         plt.xticks([])
         plt.yticks([])
         plt.subplot(2,n_frames,1+idx+n_frames)
         plt.imshow(heatmaps[idx], cmap='Reds')
-        plt.title('{:.2f} boats'.format(counts[idx]))
+        plt.title('{:.2f} boats'.format(counts[idx])) ###### color composite NIR + BG NDWI + HEATMAP (+ save image)
         plt.xticks([])
         plt.yticks([])
     fig.tight_layout()
@@ -131,6 +131,7 @@ class Model(nn.Module):
             x: tensor (B, C_in, H, W), satellite images [NIR, BG_NDWI, CLP]
             filter_peaks: bool,
             downsample: bool
+            water_NDWI: float in [-1, 1], water NDWI threshold for water/land mask
         Returns:
             pixel_embedding: tensor (B, C_h, H, W), hidden tensor
             density_map: tensor (B, 1, H//pool_size, W//pool_size), boat density
@@ -159,7 +160,7 @@ class Model(nn.Module):
         if channels>1 and water_NDWI>-1.0:
             water_land_mask = 1.0*(x[:,1:2]<0.5*(-water_NDWI+1)) # rescaled, negative NDWI
             if downsample is True:
-                water_land_mask = self.max_pool(water_land_mask) ##### self.mean_pool
+                water_land_mask = self.max_pool(water_land_mask)
             density_map = density_map*water_land_mask
         
         # geoloc boat
@@ -171,9 +172,9 @@ class Model(nn.Module):
                 density_map = filter_maxima(density_map, min_distance=self.pool_size+1, threshold_abs=0.15, threshold_rel=1.0, pad=True) ##### add threshold_abs, threshold_rel to forward parameters
                 
         y_hat = torch.sum(density_map, (2,3)) # estimate number of boats in image (where there are boats)
-        return pixel_embedding, density_map, p_hat, y_hat
+        return density_map, p_hat, y_hat
     
-    def get_loss(self, x, y, filter_peaks=False, downsample=True, ld=0.5, water_NDWI=-1.0):
+    def get_loss(self, x, y, filter_peaks=False, downsample=True, ld=0.5, water_NDWI=-1.0, eps=0.000000001):
         '''
         Computes loss function for classification / regression (params: low-dim projection W + n_clusters centroids)
         Args:
@@ -182,12 +183,14 @@ class Model(nn.Module):
             filter_peaks: bool,
             downsample: bool
             ld: float in [0,1], coef for count loss (SmoothL1) vs. presence loss (BCE)
+            water_NDWI: float in [-1, 1], water NDWI threshold for water/land mask
+            eps: float, for numerical stability (precision, recall)
         Returns:
             metrics: dict
         '''
         
         x = x.to(self.device)
-        x_hidden, density_map, p_hat, y_hat = self.forward(x, filter_peaks=filter_peaks, downsample=downsample, water_NDWI=water_NDWI)  # (B,1,n_filters,H,W)
+        density_map, p_hat, y_hat = self.forward(x, filter_peaks=filter_peaks, downsample=downsample, water_NDWI=water_NDWI)  # (B,1,n_filters,H,W)
         
         # compute loss
         p = 1.0*(y>0)
@@ -199,14 +202,12 @@ class Model(nn.Module):
         
         # metrics for boat presence
         p_ = 1.0*(p_hat>0.5)
-        eps = 0.000000001
         accuracy = (torch.mean(1.0*(p_==p)).detach()).cpu().numpy()
         precision = ((torch.sum(p_*p)+eps)/(torch.sum(p_)+eps)).detach().cpu().numpy()
         recall = ((torch.sum(p_*p)+eps)/(torch.sum(p)+eps)).detach().cpu().numpy()
         f1 = 2*precision*recall/(precision+recall)
         
         metrics = {'loss':loss, 'clf_error':clf_error, 'reg_error':reg_error, 'accuracy':accuracy, 'precision':precision, 'recall':recall, 'f1':f1}
-        
         return metrics
     
     def load_checkpoint(self, checkpoint_file):
@@ -221,12 +222,13 @@ class Model(nn.Module):
             self.load_state_dict(torch.load(checkpoint_file))
             
             
-    def chip_and_count(self, x, filter_peaks=True, downsample=False, water_NDWI=0.4, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False):
+    def chip_and_count(self, x, filter_peaks=True, downsample=False, water_NDWI=0.4, plot_heatmap=False, timestamps=None, max_frames=6, plot_indicator=False):
         """ Chip an image, predict presence for each chip and return heatmap of presence and total counts.
         Args:
             x: tensor (N, C_in, H, W)
             filter_peaks: bool,
             downsample: bool,
+            water_NDWI: float in [-1, 1], water NDWI threshold for water/land mask
             plot_heatmap:
             timestamps:
             max_frames:
@@ -244,7 +246,7 @@ class Model(nn.Module):
             
         n_frames, channels, height, width = x.shape
         for t in range(n_frames):
-            _, density_map, _, y_hat = self.forward(x[t:t+1].float(), filter_peaks=filter_peaks, downsample=downsample, water_NDWI=water_NDWI)
+            density_map, _, y_hat = self.forward(x[t:t+1].float(), filter_peaks=filter_peaks, downsample=downsample, water_NDWI=water_NDWI)
             density_map = density_map.detach().cpu().numpy()[0][0] # (H, W)
             y_hat = y_hat.detach().cpu().numpy()[0] # (1,)
             heatmaps.append(density_map)
