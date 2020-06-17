@@ -15,14 +15,14 @@ from model import Model
 
 
 
-def load_model(checkpoint_dir="../factory", version="0.1.0"):
+def load_model(checkpoint_dir="../factory", version="0.1.1"):
     """
     Args:
         checkpoint_dir: str, path to checkpoint directory
         version: str, example '0.0.1'
     """
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu' # gpu support
-    model = Model(input_dim=3, hidden_dim=32, kernel_size=3, device=device, version=version) #####
+    model = Model(input_dim=2, hidden_dim=16, kernel_size=3, device=device, version=version) #####
     checkpoint_file = os.path.join(checkpoint_dir, model.folder, 'model.pth')
     model.load_checkpoint(checkpoint_file=checkpoint_file)
     model = model.eval()
@@ -31,25 +31,24 @@ def load_model(checkpoint_dir="../factory", version="0.1.0"):
 
 
 ##### Cache results
-def coords2counts(model, coords, time_window, radius=5000, time_period='5D', max_cloud_proba=0.2):
+def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=0.2):
     '''
     Args:
         model: pytorch model
         coords: list or tuple, lat and lon.
         time_window: list or tuple, start and end dates.
-        radius: int
         time_period: str, example '5D'
         max_cloud_proba: float, max cloud coverage
     Returns:
         traffic: dict, timestamps and counts
     '''
-    lat, lon = coords[0], coords[1]    
+    lat, lon, radius = coords[0], coords[1], coords[2]
     bbox = bbox_from_point(lat=lat, lon=lon, r=radius) # WGS84 coordinates
     cube_config = CubeConfig(dataset_name='S2L1C', band_names=['B03', 'B08', 'CLP'], tile_size=[2*radius//10, 2*radius//10], geometry=bbox, time_range=time_window, time_period=time_period,)
     cube = open_cube(cube_config, max_cache_size=2**30)
     x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
     # Detect and count boats!
-    heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True,
+    heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True, water_NDWI=0.4,
                                            plot_heatmap=True, timestamps=timestamps, max_frames=6, plot_indicator=True)
 
     ##### Save AOI, timestamps, counts to geodB
@@ -59,7 +58,7 @@ def coords2counts(model, coords, time_window, radius=5000, time_period='5D', max
     return traffic
 
 
-def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], data_dir="/home/jovyan/data", checkpoint_dir="../factory", version="0.1.0", radius=5000, time_period='5D', max_cloud_proba=0.2):
+def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], data_dir="/home/jovyan/data", checkpoint_dir="../factory", version="0.1.0", time_period='5D', max_cloud_proba=0.2):
     '''
     Args:
         interest: str, 'Straits' or 'Ports'
@@ -67,7 +66,6 @@ def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2
         data_dir: str, path to data directory
         checkpoint_dir: str, path to checkpoint directory
         version: str, example '0.0.1'
-        radius: int, AOI radius in meters
         time_period: str, example '5D'
         max_cloud_proba: float, max cloud coverage
     Returns:
@@ -77,12 +75,12 @@ def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2
     model = load_model(checkpoint_dir, version) ### load pretrained model
     
     with open(os.path.join(data_dir, 'aoi.json'), 'r') as f:
-        aoi_file = json.load(f)[interest] ### load AOI
+        aoi_file = json.load(f)[interest] ### load AOI (lat, lon, radius)
     
     boat_traffic = {}
     for aoi_name in aoi_file.keys(): # loop ovr AOI
         coords = aoi_file[aoi_name][0]
-        query = '{}_lat={}_lon={}_r={}_v={}'.format(aoi_name.lower(), coords[0], coords[1], radius, version) ### Compare 2019/2020 counts
+        query = '{}_lat={}_lon={}_r={}_v={}'.format(aoi_name.lower(), coords[0], coords[1], coords[2], version) ### Compare 2019/2020 counts
         print(query.capitalize())
         output_filename = os.path.join(data_dir, 'outputs', '{}.json'.format(query))
         if os.path.exists(output_filename):
@@ -91,12 +89,12 @@ def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2
         else:
             boat_traffic[query] = OrderedDict()
             
-        for time_window in time_windows:
-            traffic = coords2counts(model=model, coords=coords, radius=radius, time_window=time_window, time_period=time_period, max_cloud_proba=max_cloud_proba) # configure, download, preprocess cube
-            boat_traffic[query] = {**boat_traffic[query], **traffic} # merge dict
-        with open(output_filename, 'w+') as f:
-            json.dump(boat_traffic[query], f, sort_keys=True, indent=4) # write file
-            
+            for time_window in time_windows:
+                traffic = coords2counts(model=model, coords=coords, time_window=time_window, time_period=time_period, max_cloud_proba=max_cloud_proba) # configure, download, preprocess cube
+                boat_traffic[query] = {**boat_traffic[query], **traffic} # merge dict
+            with open(output_filename, 'w+') as f:
+                json.dump(boat_traffic[query], f, sort_keys=True, indent=4) # write file
+
     return boat_traffic
      
     
@@ -139,7 +137,7 @@ def filter_by_weekday(counts, timestamps, week_day=0):
     return new_counts, new_timestamps
     
     
-def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_month=True, delta=[ ['2019-01-01','2019-06-01'], ['2020-01-01','2020-06-01']]):
+def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_month=True, deltas=[ [['2019-01-01','2019-06-01'], ['2020-01-01','2020-06-01']]]):
     '''
     Args:
         boat_traffic: dict, AOI and traffic
@@ -155,20 +153,34 @@ def analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0, aggregate_by_m
         counts += list(traffic.values())
         if week_day is not None:
             counts, timestamps = filter_by_weekday(counts, timestamps, week_day=week_day) # filter time series by week day
+            
+            
         counts = list(medfilt(counts, kernel_size=kernel_size)) # 1D median filtering to reduce noise
+        #counts_median = list(medfilt(counts, kernel_size=kernel_size)) # 1D median filtering to reduce noise
+        #new_counts, new_timestamps = [], []
+        #for i, (c, t) in enumerate(zip(counts, timestamps)):
+        #    ratio = counts_median[i]/np.maximum([c],[1.])
+        #    if c==0 or (ratio>=0.5):
+        #       new_counts.append(counts_median[i])
+        #        new_timestamps.append(t)
+        #counts, timestamps = new_counts, new_timestamps
+                
+            
+        
         if aggregate_by_month:
             counts, timestamps = aggregate_counts_by_months(counts, timestamps) # aggregate by month or time window (trimester)
             
         ### compute "delta" between 2019-2020 + statistics over time windows (median, std, early/end trend, etc.)
-        q1, q2 = [], []
-        for timestamp, count in zip(timestamps, counts):
-            if timestamp >= delta[0][0] and timestamp <= delta[0][1]:
-                q1.append(count)
-            if timestamp >= delta[1][0] and timestamp <= delta[1][1]:
-                q2.append(count)
-        q1, q2 = np.mean(q1), np.mean(q2)
-        print('{} \n Delta {} - {} / {} - {}: {:.2f}'.format(query, delta[0][0], delta[0][1], delta[1][0], delta[1][1], 100*(q2-q1)/q1))
-        
+        for delta in deltas:
+            q1, q2 = [], []
+            for timestamp, count in zip(timestamps, counts):
+                if timestamp >= delta[0][0] and timestamp <= delta[0][1]:
+                    q1.append(count)
+                if timestamp >= delta[1][0] and timestamp <= delta[1][1]:
+                    q2.append(count)
+            q1, q2 = np.mean(q1), np.mean(q2)
+            print('{} :: {} - {} / {} - {}: {:.2f}%'.format(query, delta[0][0], delta[0][1], delta[1][0], delta[1][1], 100*(q2-q1)/q1))
+
         
         # find idx for 2019/2020 split
         idx_2018, idx_2019, idx_2020 = -1, -1, -1
@@ -206,5 +218,5 @@ if __name__ == '__main__':
     ##### Import argparse --> CLI
     ##### Automate analysis for AOI + time window  
     
-    boat_traffic = scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], version="0.1.0", radius=5000, time_period='5D', max_cloud_proba=0.2)
+    boat_traffic = scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], version="0.1.0", time_period='5D', max_cloud_proba=0.2)
     analyze_boat_traffic(boat_traffic, kernel_size=3, week_day=0)

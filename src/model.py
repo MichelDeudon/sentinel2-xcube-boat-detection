@@ -25,7 +25,7 @@ def plot_heatmaps(timestamps, x, heatmaps, counts, max_frames=5):
         plt.xticks([])
         plt.yticks([])
         plt.subplot(2,n_frames,1+idx+n_frames)
-        plt.imshow(heatmaps[idx], cmap='coolwarm')
+        plt.imshow(heatmaps[idx], cmap='Reds')
         plt.title('{:.2f} boats'.format(counts[idx]))
         plt.xticks([])
         plt.yticks([])
@@ -104,6 +104,13 @@ class Model(nn.Module):
             nn.PReLU(),
         )
         
+        self.residual2 = nn.Sequential(
+            nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3, padding=1),
+            nn.PReLU(),
+            nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3, padding=1),
+            nn.PReLU(),
+        )
+        
         self.dropout = nn.Dropout2d(p=drop_proba, inplace=False)
         self.max_pool = nn.MaxPool2d(pool_size, stride=pool_size)
 
@@ -117,7 +124,7 @@ class Model(nn.Module):
         self.to(self.device)
         
         
-    def forward(self, x, filter_peaks=False, downsample=True):
+    def forward(self, x, filter_peaks=False, downsample=True, water_NDWI=-1.0):
         '''
         Predict boat presence (or counts) in an image x
         Args:
@@ -135,6 +142,7 @@ class Model(nn.Module):
         batch_size, channels, height, width = x.shape 
         pixel_embedding = self.embed(x)
         pixel_embedding = pixel_embedding + self.residual(pixel_embedding) # h1 (B, C_h, H, W)
+        pixel_embedding = pixel_embedding + self.residual2(pixel_embedding) # h1 (B, C_h, H, W)
         pixel_embedding = self.dropout(pixel_embedding)
             
         if downsample is True:
@@ -145,12 +153,19 @@ class Model(nn.Module):
         z = self.encode_patch(patch_embedding) # z (B, n_max+1, H//pool_size, W//pool_size) multinomial distribution Z_i=k if k boats, 0 <= k < n_max+1
         p_hat = torch.sum(z[:,1:], dim=1, keepdim=True) # probability there is a boat or more (for each chunk)
         p_hat = torch.max(torch.max(p_hat,dim=-1).values ,dim=-1).values # (B, 1) tight lower bound on probability there is a boat in full image
-        density_map = torch.sum(torch.cat([float(k)*z[:,k:k+1] for k in range(z.size(1))],1), dim=1, keepdim=True) # density map (counts) pool_size res (10pix = 100m)   
+        density_map = torch.sum(torch.cat([float(k)*z[:,k:k+1] for k in range(z.size(1))],1), dim=1, keepdim=True) # density map (counts) pool_size res (10pix = 100m)
+        
+        # mask water/land mask
+        if channels>1 and water_NDWI>-1.0:
+            water_land_mask = 1.0*(x[:,1:2]<0.5*(-water_NDWI+1)) # rescaled, negative NDWI
+            if downsample is True:
+                water_land_mask = self.max_pool(water_land_mask) ##### self.mean_pool
+            density_map = density_map*water_land_mask
         
         # geoloc boat
         if filter_peaks is True: # local maxima post process
             if downsample is True:
-                density_map = filter_maxima(density_map, min_distance=2, threshold_abs=0.25, threshold_rel=1.0, pad=False)
+                density_map = filter_maxima(density_map, min_distance=2, threshold_abs=0.1, threshold_rel=1.0, pad=False)
             else:
                 ##### ADD blur (gaussian kernel), then clip (0,1)
                 density_map = filter_maxima(density_map, min_distance=self.pool_size+1, threshold_abs=0.15, threshold_rel=1.0, pad=True) ##### add threshold_abs, threshold_rel to forward parameters
@@ -158,7 +173,7 @@ class Model(nn.Module):
         y_hat = torch.sum(density_map, (2,3)) # estimate number of boats in image (where there are boats)
         return pixel_embedding, density_map, p_hat, y_hat
     
-    def get_loss(self, x, y, filter_peaks=False, downsample=True, ld=0.5):
+    def get_loss(self, x, y, filter_peaks=False, downsample=True, ld=0.5, water_NDWI=-1.0):
         '''
         Computes loss function for classification / regression (params: low-dim projection W + n_clusters centroids)
         Args:
@@ -172,7 +187,7 @@ class Model(nn.Module):
         '''
         
         x = x.to(self.device)
-        x_hidden, density_map, p_hat, y_hat = self.forward(x, filter_peaks=filter_peaks, downsample=downsample)  # (B,1,n_filters,H,W)
+        x_hidden, density_map, p_hat, y_hat = self.forward(x, filter_peaks=filter_peaks, downsample=downsample, water_NDWI=water_NDWI)  # (B,1,n_filters,H,W)
         
         # compute loss
         p = 1.0*(y>0)
@@ -206,7 +221,7 @@ class Model(nn.Module):
             self.load_state_dict(torch.load(checkpoint_file))
             
             
-    def chip_and_count(self, x, filter_peaks=True, downsample=False, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False):
+    def chip_and_count(self, x, filter_peaks=True, downsample=False, water_NDWI=0.4, plot_heatmap=False, timestamps=None, max_frames=5, plot_indicator=False):
         """ Chip an image, predict presence for each chip and return heatmap of presence and total counts.
         Args:
             x: tensor (N, C_in, H, W)
@@ -229,7 +244,7 @@ class Model(nn.Module):
             
         n_frames, channels, height, width = x.shape
         for t in range(n_frames):
-            _, density_map, _, y_hat = self.forward(x[t:t+1].float(), filter_peaks=filter_peaks, downsample=downsample)
+            _, density_map, _, y_hat = self.forward(x[t:t+1].float(), filter_peaks=filter_peaks, downsample=downsample, water_NDWI=water_NDWI)
             density_map = density_map.detach().cpu().numpy()[0][0] # (H, W)
             y_hat = y_hat.detach().cpu().numpy()[0] # (1,)
             heatmaps.append(density_map)

@@ -60,7 +60,8 @@ def cube2tensor(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=
     """ Convert xcube to tensor and metadata"""
     cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how=nans_how, verbose=verbose, plot_NDWI=plot_NDWI)
     timestamps = [str(t)[:10] for t in cube.time.values] # format yyyy-mm-dd
-    x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values, cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,3,H,W)
+    #x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values, cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,3,H,W)
+    x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values], 0) for t in range(len(timestamps))], 0) # (T,3,H,W)
     x = torch.from_numpy(x)
     return x, timestamps
     
@@ -74,11 +75,12 @@ def plot_cube_and_background(cube, background_ndwi, t=0, figsize=(25,5)):
     """
     
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu' # gpu support
-    model = Model(input_dim=3, hidden_dim=32, kernel_size=3, device=device, version='0.1.0')
+    model = Model(input_dim=2, hidden_dim=16, kernel_size=3, device=device, version='0.1.1')
     checkpoint_file = os.path.join("../factory", model.folder, 'model.pth')
     model.load_checkpoint(checkpoint_file=checkpoint_file)
     model = model.eval()
-    x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values, cube.CLP.values[t]], 0) for t in range(len(cube.time))], 0) # (T,3,H,W)
+    #x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values, cube.CLP.values[t]], 0) for t in range(len(cube.time))], 0) # (T,3,H,W)
+    x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values], 0) for t in range(len(cube.time))], 0) # (T,3,H,W)
     x = torch.from_numpy(x)
     heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True, plot_heatmap=False, plot_indicator=False)
     

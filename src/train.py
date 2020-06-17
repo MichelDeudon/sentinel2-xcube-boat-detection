@@ -86,7 +86,7 @@ def train(train_dataloader, val_dataloader, input_dim=2, hidden_dim=16, kernel_s
   return best_metrics
 
 
-def get_failures_or_success(model, dataset, success=None, filter_on=None, plot_heatmap=False, filter_peaks=True, downsample=False):
+def get_failures_or_success(model, dataset, success=None, filter_on=None, plot_heatmap=False, filter_peaks=True, downsample=False, water_NDWI=0.3):
     """ Run model on dataset and display success or failures. Scatter plot predicted counts vs. true counts.
     Args:
         model: pytorch Model
@@ -115,7 +115,7 @@ def get_failures_or_success(model, dataset, success=None, filter_on=None, plot_h
         if filter_on is None or (int(y)==filter_on):
             
             images = imset['img'].float().reshape(1, channels, height, width)
-            x, density_map, p_hat, y_hat = model(images, filter_peaks=filter_peaks, downsample=downsample)            
+            x, density_map, p_hat, y_hat = model(images, filter_peaks=filter_peaks, downsample=downsample, water_NDWI=water_NDWI)            
             x = x.detach().cpu().numpy()[0]
             heatmap = density_map.detach().cpu().numpy()[0][0] # H,W heatmap
             y_hat = float(y_hat.detach().cpu().numpy()[0])
@@ -123,20 +123,21 @@ def get_failures_or_success(model, dataset, success=None, filter_on=None, plot_h
             
             predicted_count.append(y_hat)
             true_count.append(y)
-            mean_error.append(np.abs(y-y_hat))
+            error = np.abs(y-y_hat)
+            mean_error.append(error)
             
-            if plot_heatmap and (success is None or (success and int(np.rint(y_hat)) == int(y)) or (not success and int(np.rint(y_hat)) != int(y)) ):
-                print(filename)
+            if plot_heatmap and (success is None or (success and error<0.5) or (not success and error>=0.5)):
+                print('{},{}'.format(coordinates, timestamp))
                 relabel_images.append(Path(filename))
                 fig = plt.figure(figsize=(16,5))
                 n_channels = len(imset['img'])
                 for i in range(n_channels):
                     plt.subplot(1,n_channels+1,i+1)
                     if i == 0:  # NIR
-                        plt.imshow(-imset['img'][i], cmap='RdYlBu')
-                        plt.title('{} NIR y_true = {}'.format(timestamp, int(y)))
+                        plt.imshow(imset['img'][i], cmap='coolwarm', vmin=0., vmax=0.4)
+                        plt.title('{} NIR y_true = {}'.format(timestamp, y[0]))
                     elif i == 1: # BG NDWI
-                        plt.imshow(-imset['img'][i], cmap='RdYlBu',  vmin=-1.)
+                        plt.imshow(imset['img'][i], cmap='seismic',  vmin=0.1, vmax=0.75)
                         plt.title('BG NDWI {}'.format(coordinates))
                     elif i == 2: # CLP
                         plt.imshow(imset['img'][i]**0.5, cmap='gray', vmin=0., vmax=1.)
@@ -146,7 +147,7 @@ def get_failures_or_success(model, dataset, success=None, filter_on=None, plot_h
                 image_titles.append((imset['img'][0], 'y_true = {}'.format(int(y))))
 
                 plt.subplot(1,n_channels+1,n_channels+1)
-                plt.imshow(heatmap, cmap='magma', vmin=0., vmax=1.0)
+                plt.imshow(heatmap, cmap='Reds', vmin=0., vmax=1.0)
                 plt.title('p_hat = {:.1f} / y_hat = {:.1f}'.format(p_hat, y_hat))
                 image_titles.append((heatmap, 'y_hat = {:.4f}'.format(y_hat)))
                 plt.xticks([])
