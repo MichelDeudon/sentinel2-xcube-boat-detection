@@ -146,6 +146,23 @@ class S2_Dataset(Dataset):
             imset['img'] = imset['img'][:, crop_x:-self.crop_size+crop_x, crop_y:-self.crop_size+crop_y]
 
         imset['img'] = torch.from_numpy(skimage.img_as_float(imset['img']))
+        
+        ### Add grid as channel --> Warp image // Spatial Transform Networks
+        #H, W = 100, 100
+        #pool_size = 10
+        #grid = torch.zeros((pool_size,pool_size))
+        #grid[:1] += 1
+        #grid[-1:] += 1
+        #grid[1:-1,:1] += 1
+        #grid[1:-1,-1] += 1
+        #grid = torch.cat(H//pool_size*[grid],0)
+        #grid = torch.cat(W//pool_size*[grid],1)
+        #grid = grid.reshape(1,H,W)
+        #if self.augment is True:
+        #    grid = grid[:, crop_x:-self.crop_size+crop_x, crop_y:-self.crop_size+crop_y]
+        #imset['img'] = torch.cat([imset['img'], grid.double()], 0)
+        ###
+        
         imset['y'] = torch.from_numpy(np.array([imset['y']]))
         return imset
 
@@ -158,7 +175,8 @@ def plot_dataset(dataset, n_frames=14, n_rows=2):
         imset = dataset[t]
         x = imset['img']
         y = int(imset['y'])
-        plt.imshow(-x[0], cmap='RdYlBu') # NIR band
+        plt.imshow(x[0], cmap='coolwarm', vmin=0., vmax=0.4) # NIR band
+        #plt.imshow(np.stack([x[0]**0.5, 0.5*(x[1]+x[0]), 0.5*(1-x[1])],-1)) # composite color
         plt.xticks([])
         plt.yticks([])
         plt.title('Label {}'.format(y))
