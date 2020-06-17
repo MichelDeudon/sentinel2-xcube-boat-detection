@@ -26,7 +26,7 @@ def plot_heatmaps(timestamps, x, heatmaps, counts, max_frames=5):
         plt.yticks([])
         plt.subplot(2,n_frames,1+idx+n_frames)
         plt.imshow(heatmaps[idx], cmap='Reds')
-        plt.title('{:.2f} boats'.format(counts[idx])) ###### color composite NIR + BG NDWI + HEATMAP (+ save image)
+        plt.title('{:.2f} boats'.format(counts[idx]))
         plt.xticks([])
         plt.yticks([])
     fig.tight_layout()

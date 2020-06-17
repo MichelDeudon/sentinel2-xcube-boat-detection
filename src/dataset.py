@@ -25,15 +25,16 @@ def plot_geoloc(train_coordinates, val_coordinates=None):
 
     if val_coordinates is not None:
         df = pd.DataFrame(train_coordinates+val_coordinates, columns=['lat', 'lon'])
-        df.insert(2, "focus", [0]*len(train_coordinates)+[1]*len(val_coordinates), True)
+        df.insert(2, "color", [0]*len(train_coordinates)+[1]*len(val_coordinates), True)
     else:
         df = pd.DataFrame(train_coordinates, columns=['lat', 'lon'])
+        df.insert(2, "color", [0]*len(train_coordinates), True)
     mapbox_access_token = os.environ['mapbox_access_token'] # Mapbox access token
     px.set_mapbox_access_token(mapbox_access_token)
     if val_coordinates is not None:
-        fig = px.scatter_mapbox(df, lon="lon", lat="lat", color='focus', zoom=1, color_continuous_scale=px.colors.diverging.Picnic)
+        fig = px.scatter_mapbox(df, lon="lon", lat="lat", color='color', zoom=2, color_continuous_scale=px.colors.sequential.Bluered, width=1024, height=768)
     else:
-        fig = px.scatter_mapbox(df, lon="lon", lat="lat", zoom=1, color_continuous_scale=px.colors.diverging.Picnic)
+        fig = px.scatter_mapbox(df, lon="lon", lat="lat", color='color', zoom=2, color_continuous_scale=px.colors.sequential.Greens, width=1024, height=768)
     return fig
 
 
@@ -56,7 +57,6 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
     df_labels_groupby = df_labels.groupby("lat_lon")
     coordinates = np.array(list(df_labels_groupby.groups.keys()))    
     train_coordinates, val_coordinates = train_test_split(coordinates, test_size=test_size, random_state=seed, shuffle=True) # split train/val coordinates
-    print("Found {0} coordinates:{1} train / {2} val".format(len(coordinates), len(train_coordinates), len(val_coordinates)))
     
     def get_img_paths(coordinates):
         img_paths = []
@@ -77,6 +77,7 @@ def getImageSetDirectories(data_dir='data/chips', labels_filename='data/labels.c
     
     train_img_paths = get_img_paths(train_coordinates) # get list of filenames
     val_img_paths = get_img_paths(val_coordinates)
+    print("Found {0} coordinates ({1} chips): {2} train ({3} chips) / {4} val ({5} chips)".format(len(coordinates), len(train_img_paths)+len(val_img_paths), len(train_coordinates), len(train_img_paths), len(val_coordinates), len(val_img_paths)))
     
     fig = None
     if plot_coords is True:
