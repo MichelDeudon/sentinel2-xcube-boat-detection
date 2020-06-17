@@ -10,7 +10,9 @@ from skimage import img_as_ubyte
 import torch
 from xarray.core.dataset import Dataset
 from xarray.core.dataarray import DataArray
+import xarray
 from typing import Tuple, List
+import matplotlib.pyplot as plt
 
 from GIS_utils import bbox_from_point
 from config import CubeConfig
@@ -204,3 +206,71 @@ def request_save_cubes(start_date: str, end_date: str, lat: float, lon: float, d
     cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba,
                                        nans_how='any', verbose=1, plot_NDWI=False)
     save_cubes(cube, background_ndwi, lat_lon=(lat, lon), data_dir=Path(data_chips_dir), verbose=False)
+
+
+def remove_s1_empty_nans(cube: Dataset, nans_how='any'):
+    """
+    remove any bands that doesn't exist in cube and time stamps that has no
+    :param cube:
+    :param nans_how:
+    :return:
+    """
+    all_bands = ["HH", "HV", "VH", "VV", "HH+HV", "VV+VH"]
+    for band in all_bands:
+        try:
+            cube[band].values
+            cube[band] = cube[band].dropna(dim='time', how=nans_how)
+            cube = cube.where(cube[band].mean(dim=('lat', 'lon')) > 0.0, drop=True)
+        except:
+            cube = cube.drop_vars(band)
+    return cube
+
+
+def generate_bg_from_s1(cube: Dataset, bg_band="VV", fused_by="min"):
+    """
+    :param cube: xarray dataset
+    :param bg_band: from which band the background should be generated
+    :param fused_by: either min, max, median or mean
+    :return: the backgound xarray
+    """
+    if fused_by == "min":
+        background = cube[bg_band].min(dim="time")
+    elif fused_by == "mean":
+        background = cube[bg_band].mean(dim="time")
+    elif fused_by == "median":
+        background = cube[bg_band].median(dim="time")
+    else:
+        background = cube[bg_band].max(dim="time")
+    return background
+
+def generate_landwater_mask(cube:Dataset, threshold_quantile=0.625, plot=True):
+    """
+        generate a binary land water mask of given cube
+    :param cube: xarray Dataset
+    :param plot: if to plot
+    :param threshold_quantile:
+    :return: a binary land water mask
+    """
+    bg_VV = generate_bg_from_s1(cube, bg_band="VV", fused_by="min")
+    bg_VH = generate_bg_from_s1(cube, bg_band="VH", fused_by="min")
+    threshold_VV = bg_VV.quantile(q=threshold_quantile)
+    threshold_VH = bg_VH.quantile(q=threshold_quantile)
+    binary_bg_VH = bg_VH.where(bg_VH > threshold_VH).fillna(1).where(bg_VH <= threshold_VH).fillna(0)
+    binary_bg_VV = bg_VV.where(bg_VV > threshold_VV).fillna(1).where(bg_VV <= threshold_VV).fillna(0)
+    binary_bg = binary_bg_VH * binary_bg_VV
+    if plot:
+        plt.figure(figsize=(20, 5))
+        plt.subplot(1, 3, 1)
+        binary_bg_VH.plot.imshow()
+        plt.title("binary_bg_VH")
+        plt.subplot(1, 3, 2)
+        binary_bg_VV.plot.imshow()
+        plt.title("binary_bg_VV")
+        plt.subplot(1, 3, 3)
+        binary_bg.plot.imshow()
+        plt.title("binary_bg")
+    stacked_binary_bg_VH = xarray.concat([binary_bg_VH.expand_dims('time') for i in range(len(cube.time))], dim='time')
+    stacked_binary_bg_VV = xarray.concat([binary_bg_VV.expand_dims('time') for i in range(len(cube.time))], dim='time')
+    stacked_binary_bg = xarray.concat([binary_bg.expand_dims('time') for i in range(len(cube.time))], dim='time')
+
+    return stacked_binary_bg_VH, stacked_binary_bg_VV, stacked_binary_bg
