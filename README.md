@@ -28,7 +28,7 @@ Deploy model on large AOI (Ports, Straits, MPA), e.g. Gibraltar Strait (196 squa
 ## Links
 
 ###### 📡 2020/06/05 ESA [RACE Dashboard](https://race.esa.int/)
-###### 📡 2020/05/06 CNES SpaceGate [Article](https://spacegate.cnes.fr/fr/covid-19-venise-sans-les-bateaux)
+###### 📡 2020/05/06 CNES [SpaceGate Article](https://spacegate.cnes.fr/fr/covid-19-venise-sans-les-bateaux)
 ###### 🛰️ 2020/04/15 ESA [Tweet](https://mobile.twitter.com/EO_OPEN_SCIENCE/status/1250367319936765953)
 ###### 🛰️ 2020/04/06 ESA [Covid-19 Custom Script Contest](https://www.sentinel-hub.com/contest)
 
@@ -38,7 +38,7 @@ Deploy model on large AOI (Ports, Straits, MPA), e.g. Gibraltar Strait (196 squa
 
 ## License
 
-This repository is made available under the [Do No Harm License](https://github.com/raisely/NoHarm).
+This repository is made available under the [Do No Harm License](https://github.com/raisely/NoHarm). <br>
 Copyright (c) 2020 Michel Deudon and Zhichao Lin. All rights reserved. 
 
 <a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png" /></a><br />Our dataset is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.
