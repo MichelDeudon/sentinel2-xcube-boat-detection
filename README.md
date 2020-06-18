@@ -1,6 +1,6 @@
 # ☄️ sentinel2-xcube-boat-detection
 
-Github repository to detect and counts boat traffic 🛥️ in [Sentinel-2 imagery](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) using temporal, spectral and spatial features.
+Github repository to detect and count boat traffic 🛥️ in [Sentinel-2 imagery](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) using temporal, spectral and spatial features.
 
 ## ⛵ Setup
 
