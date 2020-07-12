@@ -30,7 +30,8 @@ def load_model(checkpoint_dir="../factory", version="0.1.1"):
     return model
 
 
-def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=0.2):
+def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=0.2,
+                  use_cached_bg_ndwi=False, bg_ndwi_dir="data/chips/"):
     '''
     Args:
         model: pytorch model
@@ -45,7 +46,15 @@ def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=
     bbox = bbox_from_point(lat=lat, lon=lon, r=radius) # WGS84 coordinates
     cube_config = CubeConfig(dataset_name='S2L1C', band_names=['B03', 'B08', 'CLP'], tile_size=[2*radius//10, 2*radius//10], geometry=bbox, time_range=time_window, time_period=time_period,)
     cube = open_cube(cube_config, max_cache_size=2**30)
-    x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
+    #TODO add use_cached_bg to cube2tensor to stop processing bg image
+    #TODO bg calculated using 3 month's data, can be updated every month
+    if use_cached_bg_ndwi:
+        subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
+        bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.png")
+        x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0,
+                                    plot_NDWI=False, bg_ndwi_path=bg_ndwi_path)  # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
+    else:
+        x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
     heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True, water_NDWI=0.4, plot_heatmap=True, timestamps=timestamps, plot_indicator=True) # Detect and count boats!
 
     ##### Save AOI, timestamps, counts to geodB. Cache Results.

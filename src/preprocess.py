@@ -58,12 +58,19 @@ def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any
     return cube, background_ndwi
 
 
-def cube2tensor(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=True):
+def cube2tensor(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=True, bg_ndwi_path=None):
     """ Convert xcube to tensor and metadata"""
+    #TODO add use_cached_bg and stop preprocess bg.
     cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how=nans_how, verbose=verbose, plot_NDWI=plot_NDWI)
     timestamps = [str(t)[:10] for t in cube.time.values] # format yyyy-mm-dd
     #x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values, cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,3,H,W)
-    x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values], 0) for t in range(len(timestamps))], 0) # (T,3,H,W)
+    ### TODO load bg from cached files
+    if bg_ndwi_path:
+        background_ndwi = np.load(bg_ndwi_path)
+        x = np.stack([np.stack([cube.B08.values[t], background_ndwi], 0) for t in range(len(timestamps))],
+                     0)  # (T,3,H,W)
+    else:
+        x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values], 0) for t in range(len(timestamps))], 0) # (T,3,H,W)
     x = torch.from_numpy(x)
     return x, timestamps
     
