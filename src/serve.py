@@ -98,12 +98,12 @@ def save_bg_ndwi(interest='Straits', time_window=['2019-01-01', '2019-05-28'],
                                  tile_size=[2 * radius // 10, 2 * radius // 10], geometry=bbox, time_range=time_window,
                                  time_period=time_period, )
         cube = open_cube(cube_config, max_cache_size=2 ** 30)
-        if override:
-            subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
-            bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.png")
-            if not os.path.isfile(bg_ndwi_path) or override:
-                preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how='any',
-                                                   verbose=0, plot_NDWI=False, bg_ndwi_path=bg_ndwi_path)
+        
+        subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
+        bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.png")
+        if not os.path.isfile(bg_ndwi_path) or override:
+            preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how='any',
+                                               verbose=0, plot_NDWI=False, bg_ndwi_path=bg_ndwi_path)
 
 
 def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']],
