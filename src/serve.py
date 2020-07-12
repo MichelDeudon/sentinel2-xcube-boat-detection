@@ -29,7 +29,7 @@ def load_model(checkpoint_dir="../factory", version="0.1.1"):
     return model
 
 def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=0.2,
-                  use_cached_bg_ndwi=False, bg_ndwi_dir="data/chips/"):
+                 bg_ndwi_dir="data/chips/"):
     '''
     Args:
         model: pytorch model
@@ -46,13 +46,11 @@ def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=
     cube = open_cube(cube_config, max_cache_size=2**30)
     #TODO add use_cached_bg to cube2tensor to stop processing bg image
     #TODO bg calculated using 3 month's data, can be updated every month
-    if use_cached_bg_ndwi:
-        subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
-        bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.png")
-        x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0,
+
+    subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
+    bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.png")
+    x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0,
                                     plot_NDWI=False, bg_ndwi_path=bg_ndwi_path)  # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
-    else:
-        x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
     heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True, water_NDWI=0.4, plot_heatmap=True, timestamps=timestamps, plot_indicator=True) # Detect and count boats!
 
     ##### Save AOI, timestamps, counts to geodB. Cache Results.
@@ -63,7 +61,7 @@ def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=
 
 
 def save_results(boat_traffic_dict, output_filename, model, coords, time_windows, time_period='5D', max_cloud_proba=0.2,
-                 use_cached_bg_ndwi=False, bg_ndwi_dir="data/chips/"):
+                bg_ndwi_dir="data/chips/"):
     '''
     Args:
         boat_traffic_dict: dict, traffic in a given AOI
@@ -78,7 +76,7 @@ def save_results(boat_traffic_dict, output_filename, model, coords, time_windows
     '''
     for time_window in time_windows:
         traffic = coords2counts(model, coords, time_window, time_period=time_period, max_cloud_proba=max_cloud_proba,
-                                use_cached_bg_ndwi=use_cached_bg_ndwi, bg_ndwi_dir=bg_ndwi_dir) # configure, download, preprocess cube
+                                bg_ndwi_dir=bg_ndwi_dir) # configure, download, preprocess cube
         boat_traffic_dict = {**boat_traffic_dict, **traffic} # merge dict
     with open(output_filename, 'w+') as f:
         json.dump(boat_traffic_dict, f, sort_keys=True, indent=4) # write file
@@ -108,7 +106,7 @@ def save_bg_ndwi(interest='Straits', time_window=['2019-01-01', '2019-05-28'],
 
 def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']],
              data_dir="../data", checkpoint_dir="../factory", version="0.1.0", time_period='5D', max_cloud_proba=0.2,
-             override=False, use_cached_bg_ndwi=False, bg_ndwi_dir="data/chips/"):
+             override=False, bg_ndwi_dir="data/chips/"):
     '''
     Args:
         interest: str, 'Straits' or 'Ports'
@@ -143,7 +141,7 @@ def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2
         if override or not os.path.exists(output_filename):
             save_results(boat_traffic[query], output_filename, model, coords, time_windows,
                          time_period=time_period, max_cloud_proba=max_cloud_proba,
-                         use_cached_bg_ndwi=use_cached_bg_ndwi, bg_ndwi_dir=bg_ndwi_dir)
+                          bg_ndwi_dir=bg_ndwi_dir)
             
     return boat_traffic
      
