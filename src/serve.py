@@ -10,7 +10,7 @@ from xcube_sh.cube import open_cube
 
 from GIS_utils import bbox_from_point
 from config import CubeConfig
-from preprocess import cube2tensor
+from preprocess import cube2tensor, preprocess
 from model import Model
 
 
@@ -28,25 +28,6 @@ def load_model(checkpoint_dir="../factory", version="0.1.1"):
     print('Loaded model version {} on {}'.format(version, device))
     return model
 
-def get_tensor(coords, time_window, time_period='5D', max_cloud_proba=0.2,
-                  use_cached_bg_ndwi=False, bg_ndwi_dir="data/chips/"):
-    lat, lon, radius = coords[0], coords[1], coords[2]
-    bbox = bbox_from_point(lat=lat, lon=lon, r=radius)  # WGS84 coordinates
-    cube_config = CubeConfig(dataset_name='S2L1C', band_names=['B03', 'B08', 'CLP'],
-                             tile_size=[2 * radius // 10, 2 * radius // 10], geometry=bbox, time_range=time_window,
-                             time_period=time_period, )
-    cube = open_cube(cube_config, max_cache_size=2 ** 30)
-    if use_cached_bg_ndwi:
-        subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
-        bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.png")
-        x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0,
-                                    plot_NDWI=False,
-                                    bg_ndwi_path=bg_ndwi_path)  # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
-    else:
-        x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0,
-                                    plot_NDWI=False)  # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
-    return x, timestamps
-
 def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=0.2,
                   use_cached_bg_ndwi=False, bg_ndwi_dir="data/chips/"):
     '''
@@ -59,21 +40,19 @@ def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=
     Returns:
         traffic: dict, timestamps and counts
     '''
-    # lat, lon, radius = coords[0], coords[1], coords[2]
-    # bbox = bbox_from_point(lat=lat, lon=lon, r=radius) # WGS84 coordinates
-    # cube_config = CubeConfig(dataset_name='S2L1C', band_names=['B03', 'B08', 'CLP'], tile_size=[2*radius//10, 2*radius//10], geometry=bbox, time_range=time_window, time_period=time_period,)
-    # cube = open_cube(cube_config, max_cache_size=2**30)
-    # #TODO add use_cached_bg to cube2tensor to stop processing bg image
-    # #TODO bg calculated using 3 month's data, can be updated every month
-    # if use_cached_bg_ndwi:
-    #     subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
-    #     bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.png")
-    #     x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0,
-    #                                 plot_NDWI=False, bg_ndwi_path=bg_ndwi_path)  # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
-    # else:
-    #     x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
-    x, timestamps = get_tensor(coords, time_window, time_period=time_period, max_cloud_proba=max_cloud_proba,
-                       use_cached_bg_ndwi=use_cached_bg_ndwi, bg_ndwi_dir=bg_ndwi_dir)
+    lat, lon, radius = coords[0], coords[1], coords[2]
+    bbox = bbox_from_point(lat=lat, lon=lon, r=radius) # WGS84 coordinates
+    cube_config = CubeConfig(dataset_name='S2L1C', band_names=['B03', 'B08', 'CLP'], tile_size=[2*radius//10, 2*radius//10], geometry=bbox, time_range=time_window, time_period=time_period,)
+    cube = open_cube(cube_config, max_cache_size=2**30)
+    #TODO add use_cached_bg to cube2tensor to stop processing bg image
+    #TODO bg calculated using 3 month's data, can be updated every month
+    if use_cached_bg_ndwi:
+        subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
+        bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.png")
+        x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0,
+                                    plot_NDWI=False, bg_ndwi_path=bg_ndwi_path)  # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
+    else:
+        x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0, plot_NDWI=False) # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
     heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True, water_NDWI=0.4, plot_heatmap=True, timestamps=timestamps, plot_indicator=True) # Detect and count boats!
 
     ##### Save AOI, timestamps, counts to geodB. Cache Results.
@@ -104,6 +83,27 @@ def save_results(boat_traffic_dict, output_filename, model, coords, time_windows
     with open(output_filename, 'w+') as f:
         json.dump(boat_traffic_dict, f, sort_keys=True, indent=4) # write file
 
+def save_bg_ndwi(interest='Straits', time_window=['2019-01-01', '2019-05-28'],
+                 data_dir="../data", bg_ndwi_dir="data/chips/",
+                 time_period='5D', max_cloud_proba=0.2,
+                 override=False):
+    with open(os.path.join(data_dir, 'aoi.json'), 'r') as f:
+        aoi_file = json.load(f)[interest]  ### load AOI (lat, lon, radius)
+
+    for aoi_name in aoi_file.keys():  # loop ovr AOI
+        coords = aoi_file[aoi_name][0]
+        lat, lon, radius = coords[0], coords[1], coords[2]
+        bbox = bbox_from_point(lat=lat, lon=lon, r=radius)  # WGS84 coordinates
+        cube_config = CubeConfig(dataset_name='S2L1C', band_names=['B03', 'B08', 'CLP'],
+                                 tile_size=[2 * radius // 10, 2 * radius // 10], geometry=bbox, time_range=time_window,
+                                 time_period=time_period, )
+        cube = open_cube(cube_config, max_cache_size=2 ** 30)
+        if override:
+            subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
+            bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.png")
+            if not os.path.isfile(bg_ndwi_path) or override:
+                preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how='any',
+                                                   verbose=0, plot_NDWI=False, bg_ndwi_path=bg_ndwi_path)
 
 
 def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']],
