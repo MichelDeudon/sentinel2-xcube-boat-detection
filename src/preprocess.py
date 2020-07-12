@@ -5,7 +5,7 @@ from pathlib import Path
 import warnings
 import pandas as pd
 import numpy as np
-from skimage.io import imsave
+from skimage.io import imsave, imread
 from skimage import img_as_ubyte
 import torch
 from xarray.core.dataset import Dataset
@@ -47,7 +47,7 @@ def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any
         print('Keeping {}/{} images {}% cloudless'.format(len(cube.time), n_snaps, 100*(1-max_cloud_proba))) # keep cloudless imagery
 
     if bg_ndwi_path and os.path.isfile(bg_ndwi_path):
-        background_ndwi = np.load(bg_ndwi_path)
+        background_ndwi = imread(bg_ndwi_path)
     else:
         ndwi = (cube.B03-cube.B08)/(cube.B03+cube.B08) # NDWI, reference (McFeeters, 1996)
         ndwi.attrs['long_name']='-NDWI'
@@ -58,7 +58,8 @@ def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any
         cube['NDWI'] = (cube.NDWI+1.0)/2.0 # from [-1,1] to [0,1]
         cube = cube*(cube<=1.0) + 1.*(cube>1.0) # clip other bands to [0,1]
         background_ndwi = cube.NDWI.min(dim='time')
-        np.save(background_ndwi.values, bg_ndwi_path)
+        Path(bg_ndwi_path).parents[0].mkdir(exist_ok=True)
+        imsave(bg_ndwi_path, img_as_ubyte(background_ndwi.values))
     return cube, background_ndwi
 
 
