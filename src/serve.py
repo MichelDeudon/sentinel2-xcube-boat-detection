@@ -64,7 +64,8 @@ def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=
     return traffic
 
 
-def save_results(boat_traffic_dict, output_filename, model, coords, time_windows, time_period='5D', max_cloud_proba=0.2):
+def save_results(boat_traffic_dict, output_filename, model, coords, time_windows, time_period='5D', max_cloud_proba=0.2,
+                 use_cached_bg_ndwi=False, bg_ndwi_dir="data/chips/"):
     '''
     Args:
         boat_traffic_dict: dict, traffic in a given AOI
@@ -78,14 +79,17 @@ def save_results(boat_traffic_dict, output_filename, model, coords, time_windows
         traffic: dict, timestamps and counts
     '''
     for time_window in time_windows:
-        traffic = coords2counts(model, coords, time_window, time_period=time_period, max_cloud_proba=max_cloud_proba) # configure, download, preprocess cube
+        traffic = coords2counts(model, coords, time_window, time_period=time_period, max_cloud_proba=max_cloud_proba,
+                                use_cached_bg_ndwi=use_cached_bg_ndwi, bg_ndwi_dir=bg_ndwi_dir) # configure, download, preprocess cube
         boat_traffic_dict = {**boat_traffic_dict, **traffic} # merge dict
     with open(output_filename, 'w+') as f:
         json.dump(boat_traffic_dict, f, sort_keys=True, indent=4) # write file
 
 
 
-def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']], data_dir="../data", checkpoint_dir="../factory", version="0.1.0", time_period='5D', max_cloud_proba=0.2, override=False):
+def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2020-01-01', '2020-05-28']],
+             data_dir="../data", checkpoint_dir="../factory", version="0.1.0", time_period='5D', max_cloud_proba=0.2,
+             override=False, use_cached_bg_ndwi=False, bg_ndwi_dir="data/chips/"):
     '''
     Args:
         interest: str, 'Straits' or 'Ports'
@@ -118,7 +122,9 @@ def scan_AOI(interest='Straits', time_windows=[['2019-01-01', '2019-05-28'], ['2
             boat_traffic[query] = OrderedDict()
             
         if override or not os.path.exists(output_filename):
-            save_results(boat_traffic[query], output_filename, model, coords, time_windows, time_period=time_period, max_cloud_proba=max_cloud_proba)
+            save_results(boat_traffic[query], output_filename, model, coords, time_windows,
+                         time_period=time_period, max_cloud_proba=max_cloud_proba,
+                         use_cached_bg_ndwi=use_cached_bg_ndwi, bg_ndwi_dir=bg_ndwi_dir)
             
     return boat_traffic
      
