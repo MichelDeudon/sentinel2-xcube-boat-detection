@@ -19,7 +19,7 @@ from config import CubeConfig
 from model import Model
 
 def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any', verbose: int = 1,
-               plot_NDWI: bool = True) -> Tuple[Dataset, DataArray]:
+               plot_NDWI: bool = True, bg_ndwi_path=None):
     """ Preprocess cube for boat detect.
     
     Args:
@@ -45,31 +45,40 @@ def preprocess(cube: Dataset, max_cloud_proba: float = 0.1, nans_how: str = 'any
         cube = cube.where(cloud_mask.mean(dim=('lat','lon'))<max_cloud_proba, drop=True)
     if verbose:
         print('Keeping {}/{} images {}% cloudless'.format(len(cube.time), n_snaps, 100*(1-max_cloud_proba))) # keep cloudless imagery
-    
-    ndwi = (cube.B03-cube.B08)/(cube.B03+cube.B08) # NDWI, reference (McFeeters, 1996)
-    ndwi.attrs['long_name']='-NDWI'
-    ndwi.attrs['units']='unitless'
-    cube['NDWI'] = -ndwi # add negative NDWI (high value for non water)
-    if plot_NDWI:
-        cube.NDWI.plot.imshow(col='time', col_wrap=4, cmap='coolwarm') ##### plot False Color instead!!!
-    cube['NDWI'] = (cube.NDWI+1.0)/2.0 # from [-1,1] to [0,1]
-    cube = cube*(cube<=1.0) + 1.*(cube>1.0) # clip other bands to [0,1]
-    background_ndwi = cube.NDWI.min(dim='time')
+
+    if bg_ndwi_path and os.path.isfile(bg_ndwi_path):
+        background_ndwi = np.load(bg_ndwi_path)
+    else:
+        ndwi = (cube.B03-cube.B08)/(cube.B03+cube.B08) # NDWI, reference (McFeeters, 1996)
+        ndwi.attrs['long_name']='-NDWI'
+        ndwi.attrs['units']='unitless'
+        cube['NDWI'] = -ndwi # add negative NDWI (high value for non water)
+        if plot_NDWI:
+            cube.NDWI.plot.imshow(col='time', col_wrap=4, cmap='coolwarm') ##### plot False Color instead!!!
+        cube['NDWI'] = (cube.NDWI+1.0)/2.0 # from [-1,1] to [0,1]
+        cube = cube*(cube<=1.0) + 1.*(cube>1.0) # clip other bands to [0,1]
+        background_ndwi = cube.NDWI.min(dim='time')
+        np.save(background_ndwi.values, bg_ndwi_path)
     return cube, background_ndwi
 
 
 def cube2tensor(cube, max_cloud_proba=0.1, nans_how='any', verbose=1, plot_NDWI=True, bg_ndwi_path=None):
     """ Convert xcube to tensor and metadata"""
     #TODO add use_cached_bg and stop preprocess bg.
-    cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how=nans_how, verbose=verbose, plot_NDWI=plot_NDWI)
-    timestamps = [str(t)[:10] for t in cube.time.values] # format yyyy-mm-dd
     #x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values, cube.CLP.values[t]], 0) for t in range(len(timestamps))], 0) # (T,3,H,W)
     ### TODO load bg from cached files
-    if bg_ndwi_path:
-        background_ndwi = np.load(bg_ndwi_path)
+    if bg_ndwi_path and os.path.isfile(bg_ndwi_path):
+        # FIXME in this case, bg is np array
+        cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how=nans_how,
+                                           verbose=verbose, plot_NDWI=plot_NDWI, bg_ndwi_path=bg_ndwi_path)
+        timestamps = [str(t)[:10] for t in cube.time.values]  # format yyyy-mm-dd
         x = np.stack([np.stack([cube.B08.values[t], background_ndwi], 0) for t in range(len(timestamps))],
                      0)  # (T,3,H,W)
     else:
+        # FiXME in this case, bg is xarray
+        cube, background_ndwi = preprocess(cube, max_cloud_proba=max_cloud_proba, nans_how=nans_how,
+                                           verbose=verbose, plot_NDWI=plot_NDWI, bg_ndwi_path=bg_ndwi_path)
+        timestamps = [str(t)[:10] for t in cube.time.values]  # format yyyy-mm-dd
         x = np.stack([np.stack([cube.B08.values[t], background_ndwi.values], 0) for t in range(len(timestamps))], 0) # (T,3,H,W)
     x = torch.from_numpy(x)
     return x, timestamps
