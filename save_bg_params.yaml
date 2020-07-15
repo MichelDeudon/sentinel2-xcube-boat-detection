@@ -1,2 +1,3 @@
-root_dir: "zhichao/sentinel2-xcube-boat-detection"
 interest: "Test"
+root_dir: "zhichao/sentinel2-xcube-boat-detection"
+override: true
