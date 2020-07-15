@@ -1,8 +1,8 @@
 #!/bin/bash
 
-PATH_TO_NOTEBOOK='notebooks/5 - Deploy_model.ipynb'
-PATH_TO_YAML='deploy_params.yaml'
-BASE64_ENCODED_PARAMS=$(cat $PATH_TO_YAML | base64)
+PATH_TO_NOTEBOOK='zhichao/sentinel2-xcube-boat-detection/notebooks/deploy_model.ipynb'
+PATH_TO_YAML='deploy_model_params.yaml'
+BASE64_ENCODED_PARAMS=$(cat $PATH_TO_YAML | base64 | tr -d \\n)
 
 echo "PATH_TO_NOTEBOOK: $PATH_TO_NOTEBOOK"
 echo "PATH_TO_YAML: $PATH_TO_YAML"
@@ -15,12 +15,12 @@ curl --location --request POST 'https://wps-ehtdmb-85138fe6-e211-4b8f-8371-70f18
     <ows:Identifier>execute-notebook</ows:Identifier>
     <wps:Input id="Notebook">
         <wps:Data>
-            <wps:LiteralValue>$PATH_TO_NOTEBOOK</wps:LiteralValue>
+            <wps:LiteralValue>'$PATH_TO_NOTEBOOK'</wps:LiteralValue>
         </wps:Data>
     </wps:Input>
     <wps:Input id="Parameters">
         <wps:Data>
-            <wps:LiteralValue>$BASE64_ENCODED_PARAMS</wps:LiteralValue>
+            <wps:LiteralValue>'$BASE64_ENCODED_PARAMS'</wps:LiteralValue>
         </wps:Data>
     </wps:Input>
     <wps:Output id="Result" transmission="reference"/>
