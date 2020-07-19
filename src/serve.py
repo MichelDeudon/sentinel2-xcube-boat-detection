@@ -3,6 +3,7 @@ import json
 import torch
 import datetime
 import numpy as np
+from pathlib import Path
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 from scipy.signal import medfilt
@@ -49,10 +50,26 @@ def coords2counts(model, coords, time_window, time_period='5D', max_cloud_proba=
 
     subdir = 'lat_{}_lon_{}'.format(str(lat).replace('.', '_'), str(lon).replace('.', '_'))
     bg_ndwi_path = os.path.join(bg_ndwi_dir, subdir, "bg_ndwi.npy")
-    x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0,
+    try:
+        x, timestamps = cube2tensor(cube, max_cloud_proba=max_cloud_proba, nans_how='any', verbose=0,
                                     plot_NDWI=False, bg_ndwi_path=bg_ndwi_path)  # Convert Cube to tensor (NIR + BG_NDWI) and metadata.
+    except ValueError as e:
+        return OrderedDict()
+    
     heatmaps, counts = model.chip_and_count(x, filter_peaks=True, downsample=True, water_NDWI=0.4, plot_heatmap=False, timestamps=timestamps, plot_indicator=False) # Detect and count boats!
-
+    
+    for i, timestamp in enumerate(timestamps):
+        aoi_heatmap_dir = Path(Path(bg_ndwi_dir).parents[0], "heatmaps", subdir)
+        aoi_heatmap_dir.mkdir(parents=True, exist_ok=True)
+        heatmap_file_path = Path(aoi_heatmap_dir, timestamp + '.npy')
+        np.save(heatmap_file_path, heatmaps[i])
+        
+        aoi_nir_dir = Path(Path(bg_ndwi_dir).parents[0], "B08", subdir)
+        aoi_nir_dir.mkdir(parents=True, exist_ok=True)
+        nir_file_path = Path(aoi_nir_dir, timestamp + '.npy')
+        np.save(nir_file_path, x[i, 0, :, :])
+        
+    
     ##### Save AOI, timestamps, counts to geodB. Cache Results.
     traffic = OrderedDict()
     for timestamp, count in zip(timestamps, counts):
