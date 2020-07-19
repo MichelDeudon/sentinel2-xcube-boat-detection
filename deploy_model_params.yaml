@@ -1,5 +1,2 @@
 root_dir: "zhichao/sentinel2-xcube-boat-detection"
-interest: "Final"
-bg_ndwi_dir: "data/bg_ndwi_2020-07-18"
-end_date: '2020-07-18'
-start_date: '2020-06-18'
+interest: "Test"

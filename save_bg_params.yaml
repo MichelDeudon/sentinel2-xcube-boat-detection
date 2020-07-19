@@ -1,5 +1,3 @@
-interest: "Final"
+interest: "Test"
 root_dir: "zhichao/sentinel2-xcube-boat-detection"
-bg_ndwi_dir_prefix: "/home/jovyan/data/bg_ndwi"
-end_date: '2019-03-21'
-start_date: '2018-12-22
+override: true
